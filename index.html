@@ -322,6 +322,7 @@ async function handleLogin(){
   state.currentUser = data;
   state.loginLoading = false;
   await loadData();
+  requestNotificationPermission();
   render();
 }
 
@@ -356,6 +357,10 @@ async function submitFeedback(){
   if(!error && data){
     state.feedbacks = [data, ...state.feedbacks];
     state.showModal = false;
+    // Send push notification to recipient
+    const toUser = getUserById(f.toId);
+    const fromUser = state.currentUser;
+    sendPushNotification(toUser, fromUser, f.title, f.type);
     state.form = { toId:'', type:'positive', category:'Desempenho', title:'', content:'' };
     showToast('✦ Feedback registrado com sucesso!');
   }
@@ -375,6 +380,27 @@ async function submitUser(){
   } else {
     showToast('Erro: e-mail já cadastrado.');
   }
+}
+
+
+// ── Push Notifications ──────────────────────────────────────────────────────
+async function requestNotificationPermission(){
+  if(!('Notification' in window)) return;
+  if(Notification.permission === 'default'){
+    await Notification.requestPermission();
+  }
+}
+
+function sendPushNotification(toUser, fromUser, feedbackTitle, feedbackType){
+  if(!('Notification' in window)) return;
+  if(Notification.permission !== 'granted') return;
+  const icon = feedbackType === 'positive' ? '✦' : '△';
+  const typeLabel = feedbackType === 'positive' ? 'Positivo' : 'Construtivo';
+  new Notification(`${icon} Novo Feedback ${typeLabel} — Pulso`, {
+    body: `${fromUser.name} registrou um feedback para você: "${feedbackTitle}"`,
+    icon: '/favicon.ico',
+    tag: 'pulso-feedback',
+  });
 }
 
 // Render
