@@ -762,6 +762,9 @@ function bindApp(){
       else deleteUser(state.confirm.id);
     };
   }
+
+  // Feedback modal
+  if(state.showModal){
     document.getElementById('closeModal').onclick = ()=>{ state.showModal=false; render(); };
     document.getElementById('cancelModal').onclick = ()=>{ state.showModal=false; render(); };
     document.getElementById('modalOverlay').onclick = e=>{ if(e.target.id==='modalOverlay'){ state.showModal=false; render(); }};
