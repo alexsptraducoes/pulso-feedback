@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Feedback — SP Traduções</title>
+<title>Pulso — SP Traduções</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,400;0,600;0,700;1,300&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -17,7 +17,7 @@
 }
 body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);min-height:100vh}
 
-/* ── LOGIN ── */
+/* LOGIN */
 .login-screen{width:100%;min-height:100vh;display:flex;align-items:center;justify-content:center;
   background:var(--ink);
   background-image:radial-gradient(ellipse at 20% 80%,rgba(181,69,27,.18) 0%,transparent 60%),
@@ -26,19 +26,16 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .login-logo{font-family:'Fraunces',serif;font-size:32px;font-weight:700;color:var(--ink)}
 .login-subtitle{font-size:12px;color:var(--muted);margin-bottom:44px;letter-spacing:.06em;text-transform:uppercase;margin-top:6px}
 .login-label{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;display:block;margin-bottom:8px}
-.login-input,.login-select{width:100%;padding:13px 16px;border:1.5px solid var(--border);border-radius:3px;
+.login-input{width:100%;padding:13px 16px;border:1.5px solid var(--border);border-radius:3px;
   background:var(--white);font-family:'DM Sans',sans-serif;font-size:14px;color:var(--ink);margin-bottom:18px;transition:border-color .15s}
-.login-input:focus,.login-select:focus{outline:none;border-color:var(--ink)}
-.login-select{cursor:pointer;appearance:none;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237a7166' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
-  background-repeat:no-repeat;background-position:right 14px center}
+.login-input:focus{outline:none;border-color:var(--ink)}
 .login-btn{width:100%;padding:15px;background:var(--ink);color:var(--paper);border:none;border-radius:3px;
   font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;letter-spacing:.04em;transition:all .2s;margin-top:4px}
 .login-btn:hover{background:var(--accent)}
 .login-btn:disabled{opacity:.5;cursor:not-allowed}
 .login-error{font-size:12px;color:var(--constructive);margin-bottom:12px;padding:10px 14px;background:var(--constructive-bg);border-radius:3px}
 
-/* ── LAYOUT ── */
+/* LAYOUT */
 .app{display:flex;min-height:100vh}
 .sidebar{width:248px;min-height:100vh;background:var(--ink);display:flex;flex-direction:column;position:fixed;left:0;top:0;z-index:100}
 .sidebar-brand{padding:28px 24px 22px;border-bottom:1px solid rgba(255,255,255,.06)}
@@ -64,7 +61,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .topbar-sub{font-size:12px;color:var(--muted);margin-top:2px}
 .content{padding:40px}
 
-/* ── STATS ── */
+/* STATS */
 .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-bottom:40px}
 .stat-card{background:var(--white);border:1px solid var(--border);border-radius:4px;padding:24px}
 .stat-card.dark{background:var(--ink)}
@@ -73,13 +70,34 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .stat-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:6px}
 .stat-card.dark .stat-label{color:rgba(245,240,232,.4)}
 
-/* ── SECTION ── */
+/* RANKING */
+.ranking-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:40px}
+.ranking-card{background:var(--white);border:1px solid var(--border);border-radius:4px;overflow:hidden}
+.ranking-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.ranking-title{font-family:'Fraunces',serif;font-size:16px;font-weight:600}
+.ranking-item{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--cream)}
+.ranking-item:last-child{border-bottom:none}
+.ranking-pos{font-family:'Fraunces',serif;font-size:18px;font-weight:700;color:var(--muted);width:24px;text-align:center}
+.ranking-pos.gold{color:#c9a84c}
+.ranking-pos.silver{color:#888}
+.ranking-pos.bronze{color:#a06b3c}
+.ranking-name{flex:1;font-size:13px;font-weight:500}
+.ranking-dept{font-size:11px;color:var(--muted)}
+.ranking-count{font-family:'Fraunces',serif;font-size:22px;font-weight:700}
+.ranking-count.pos{color:var(--positive)}
+.ranking-count.con{color:var(--constructive)}
+
+/* SECTION */
 .section{margin-bottom:40px}
 .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
 .section-title{font-family:'Fraunces',serif;font-size:19px;font-weight:600;color:var(--ink)}
 .section-count{font-size:12px;color:var(--muted);background:var(--cream);padding:3px 10px;border-radius:20px}
 
-/* ── FEEDBACK CARDS ── */
+/* TEAM BADGE */
+.team-badge{display:inline-block;padding:3px 10px;border-radius:2px;font-size:10px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.08em;background:var(--cream);color:var(--muted)}
+
+/* FEEDBACK CARDS */
 .feedback-list{display:flex;flex-direction:column;gap:12px}
 .feedback-card{background:var(--white);border:1px solid var(--border);border-radius:4px;padding:20px 24px;
   border-left:3px solid transparent;transition:box-shadow .15s}
@@ -101,7 +119,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .feedback-content{font-size:13px;color:#3d3830;line-height:1.65}
 .feedback-date{font-size:11px;color:var(--muted);margin-top:12px;padding-top:12px;border-top:1px solid var(--cream)}
 
-/* ── BUTTONS ── */
+/* BUTTONS */
 .btn{display:inline-flex;align-items:center;gap:6px;padding:10px 18px;border-radius:3px;
   font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;border:none}
 .btn-primary{background:var(--ink);color:var(--paper)}
@@ -118,7 +136,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .confirm-text{font-size:13px;color:var(--muted);margin-bottom:24px;line-height:1.6}
 .confirm-actions{display:flex;gap:10px;justify-content:center}
 
-/* ── MODAL ── */
+/* MODAL */
 .modal-overlay{position:fixed;inset:0;background:rgba(13,13,13,.55);z-index:200;display:flex;
   align-items:center;justify-content:center;padding:24px;backdrop-filter:blur(3px)}
 .modal{background:var(--paper);border-radius:4px;width:100%;max-width:580px;box-shadow:var(--shadow-lg);max-height:90vh;overflow-y:auto}
@@ -140,19 +158,19 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .type-btn.sel-positive{border-color:var(--positive);background:var(--positive-bg);color:var(--positive)}
 .type-btn.sel-constructive{border-color:var(--constructive);background:var(--constructive-bg);color:var(--constructive)}
 
-/* ── FILTERS ── */
-.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px}
+/* FILTERS */
+.filters{display:flex;gap:8px;flex-wrap:wrap}
 .filter-btn{padding:7px 14px;border-radius:2px;font-size:12px;font-weight:500;cursor:pointer;
   transition:all .15s;border:1.5px solid var(--border);background:var(--white);color:var(--muted);font-family:'DM Sans',sans-serif}
 .filter-btn.active{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 
-/* ── EMPTY ── */
+/* EMPTY */
 .empty-state{padding:60px 40px;text-align:center;background:var(--white);border:1px dashed var(--border);border-radius:4px}
 .empty-icon{font-size:36px;margin-bottom:16px;opacity:.35}
 .empty-title{font-family:'Fraunces',serif;font-size:18px;color:var(--ink);margin-bottom:8px}
 .empty-text{font-size:13px;color:var(--muted)}
 
-/* ── PEOPLE ── */
+/* PEOPLE */
 .people-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}
 .person-card{background:var(--white);border:1px solid var(--border);border-radius:4px;padding:22px;
   display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px}
@@ -162,7 +180,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .person-dept{font-size:11px;color:var(--muted)}
 .person-counts{font-size:12px;color:var(--muted);margin-top:2px}
 
-/* ── MY HERO ── */
+/* MY HERO */
 .my-hero{background:var(--ink);border-radius:4px;padding:32px;margin-bottom:32px;display:flex;align-items:center;gap:20px}
 .my-hero-avatar{width:58px;height:58px;border-radius:50%;background:rgba(245,240,232,.12);display:flex;
   align-items:center;justify-content:center;font-size:18px;font-weight:700;color:var(--paper);flex-shrink:0}
@@ -176,7 +194,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .my-stat-num.tot{color:var(--paper)}
 .my-stat-label{font-size:10px;color:rgba(245,240,232,.38);text-transform:uppercase;letter-spacing:.08em}
 
-/* ── USERS ADMIN ── */
+/* USERS ADMIN */
 .users-table{width:100%;background:var(--white);border:1px solid var(--border);border-radius:4px;overflow:hidden}
 .users-table table{width:100%;border-collapse:collapse}
 .users-table th{padding:12px 18px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);
@@ -188,12 +206,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .role-leader{background:var(--accent);color:white}
 .role-employee{background:var(--sand);color:var(--ink)}
 
-/* ── LOADER ── */
+/* LOADER */
 .loader{display:flex;align-items:center;justify-content:center;padding:60px;gap:12px;color:var(--muted);font-size:13px}
 .spinner{width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--ink);border-radius:50%;animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 
-/* ── TOAST ── */
+/* TOAST */
 .toast{position:fixed;bottom:24px;right:24px;background:var(--ink);color:var(--paper);padding:14px 20px;
   border-radius:3px;font-size:13px;font-weight:500;z-index:999;box-shadow:var(--shadow-lg);
   animation:slideIn .25s ease}
@@ -205,18 +223,17 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 </style>
 </head>
 <body>
-
 <div id="app"></div>
-
 <script>
-// ── Supabase Setup ──────────────────────────────────────────────────────────
 const { createClient } = supabase;
 const sb = createClient(
   'https://jdopriegkcfwiljcifyl.supabase.co',
   'sb_publishable_cb_xRLjTRtrfmuemXyk3LA_4LBMl327'
 );
 
-// ── State ───────────────────────────────────────────────────────────────────
+const TEAMS = ['Comercial','Financeiro','Projetos','Finalização'];
+const categories = ['Desempenho','Comunicação','Trabalho em Equipe','Liderança','Resultados','Inovação','Atendimento','Comportamento'];
+
 let state = {
   currentUser: null,
   users: [],
@@ -233,23 +250,45 @@ let state = {
   loginError: '',
   loginLoading: false,
   toast: null,
-  confirm: null, // { type: 'feedback'|'user', id, name }
+  confirm: null,
 };
 
-const categories = ['Desempenho','Comunicação','Trabalho em Equipe','Liderança','Resultados','Inovação','Atendimento','Comportamento'];
-
-// ── Helpers ─────────────────────────────────────────────────────────────────
+// Helpers
 function initials(name){ return name ? name.split(' ').slice(0,2).map(n=>n[0]).join('').toUpperCase() : '?'; }
 function getUserById(id){ return state.users.find(u=>u.id===id); }
 function fmt(date){ return new Date(date).toLocaleDateString('pt-BR',{day:'numeric',month:'long',year:'numeric'}); }
 function today(){ return new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'}); }
+
+// Access control helpers
+function getMyTeamMembers(){
+  const u = state.currentUser;
+  if(u.role === 'admin') return state.users.filter(x => x.role === 'employee');
+  if(u.role === 'leader') return state.users.filter(x => x.role === 'employee' && x.department === u.department);
+  return [];
+}
+
+function getVisibleFeedbacks(){
+  const u = state.currentUser;
+  if(u.role === 'admin') return state.feedbacks;
+  if(u.role === 'leader'){
+    const myTeamIds = getMyTeamMembers().map(x => x.id);
+    return state.feedbacks.filter(f => myTeamIds.includes(f.to_id));
+  }
+  return state.feedbacks.filter(f => f.to_id === u.id);
+}
+
+function canGiveFeedbackTo(targetUser){
+  const u = state.currentUser;
+  if(u.role === 'admin') return true;
+  if(u.role === 'leader') return targetUser.role === 'employee' && targetUser.department === u.department;
+  return false;
+}
 
 function showToast(msg){
   state.toast = msg; render();
   setTimeout(()=>{ state.toast=null; render(); }, 3000);
 }
 
-// ── Data ────────────────────────────────────────────────────────────────────
 async function loadData(){
   const [{ data: users }, { data: feedbacks }] = await Promise.all([
     sb.from('users').select('*').order('name'),
@@ -283,7 +322,6 @@ async function deleteFeedback(id){
 }
 
 async function deleteUser(id){
-  // First delete all feedbacks from/to this user
   await sb.from('feedbacks').delete().eq('from_id', id);
   await sb.from('feedbacks').delete().eq('to_id', id);
   state.feedbacks = state.feedbacks.filter(f=>f.from_id!==id && f.to_id!==id);
@@ -313,21 +351,20 @@ async function submitFeedback(){
 async function submitUser(){
   const u = state.userForm;
   if(!u.name || !u.email || !u.password || !u.role) return;
-  const av = initials(u.name);
   const { data, error } = await sb.from('users').insert({
-    name:u.name, email:u.email, password:u.password, role:u.role, department:u.department, avatar:av
+    name:u.name, email:u.email, password:u.password, role:u.role, department:u.department, avatar:initials(u.name)
   }).select().single();
   if(!error && data){
     state.users = [...state.users, data].sort((a,b)=>a.name.localeCompare(b.name));
     state.showUserModal = false;
     state.userForm = { name:'', email:'', password:'', role:'employee', department:'' };
     showToast('✦ Usuário cadastrado com sucesso!');
-  } else if(error){
+  } else {
     showToast('Erro: e-mail já cadastrado.');
   }
 }
 
-// ── Render ───────────────────────────────────────────────────────────────────
+// Render
 function render(){
   const app = document.getElementById('app');
   if(!state.currentUser){ app.innerHTML = renderLogin(); bindLogin(); return; }
@@ -335,12 +372,12 @@ function render(){
   bindApp();
 }
 
-// ── LOGIN ────────────────────────────────────────────────────────────────────
 function renderLogin(){
   return `
   <div class="login-screen">
     <div class="login-card">
-      <div class="login-logo">SP Traduções</div><div class="login-subtitle">FEEDBACK · SP TRADUÇÕES</div>
+      <div class="login-logo">SP Traduções</div>
+      <div class="login-subtitle">Sistema de Feedback · Pulso</div>
       ${state.loginError ? `<div class="login-error">${state.loginError}</div>` : ''}
       <label class="login-label">E-mail</label>
       <input class="login-input" id="lemail" type="email" placeholder="seu@email.com" value="${state.loginEmail}">
@@ -360,7 +397,6 @@ function bindLogin(){
   document.getElementById('lbtn').onclick = handleLogin;
 }
 
-// ── APP ───────────────────────────────────────────────────────────────────────
 function renderApp(){
   const u = state.currentUser;
   const canGive = u.role === 'admin' || u.role === 'leader';
@@ -368,23 +404,20 @@ function renderApp(){
     ? [{id:'dashboard',label:'Meus Feedbacks',icon:'my'}]
     : [
         {id:'dashboard',label:'Visão Geral',icon:'dash'},
-        {id:'all',label:'Todos os Feedbacks',icon:'fb'},
-        {id:'people',label:'Colaboradores',icon:'ppl'},
-        ...(u.role==='admin' ? [{id:'users',label:'Gerenciar Usuários',icon:'usr'}] : [])
+        {id:'all',label:'Feedbacks',icon:'fb'},
+        {id:'people',label:'Meu Time',icon:'ppl'},
+        ...(u.role==='admin' ? [{id:'users',label:'Usuários',icon:'usr'}] : [])
       ];
 
   const roleLabel = u.role==='admin' ? 'Admin · CEO' : u.role==='leader' ? 'Líder' : 'Colaborador';
-  const viewTitle = state.view==='dashboard' && u.role!=='employee' ? 'Visão Geral'
-    : state.view==='dashboard' ? 'Meus Feedbacks'
-    : state.view==='all' ? 'Todos os Feedbacks'
-    : state.view==='people' ? 'Colaboradores'
-    : 'Gerenciar Usuários';
+  const viewTitles = {dashboard: u.role==='employee' ? 'Meus Feedbacks' : 'Visão Geral', all:'Feedbacks', people: u.role==='admin' ? 'Todos os Times' : 'Meu Time', users:'Gerenciar Usuários'};
 
   return `
   <div class="app">
     <nav class="sidebar">
       <div class="sidebar-brand">
-        <div class="login-logo">SP Traduções</div>
+        <div class="sidebar-logo">SP Traduções</div>
+        <div class="sidebar-tagline">Pulso · Feedback</div>
       </div>
       <div class="sidebar-user">
         <div class="sidebar-user-name">${u.name}</div>
@@ -402,7 +435,7 @@ function renderApp(){
     <div class="main">
       <div class="topbar">
         <div>
-          <div class="topbar-title">${viewTitle}</div>
+          <div class="topbar-title">${viewTitles[state.view]||'Visão Geral'}</div>
           <div class="topbar-sub">${today()}</div>
         </div>
         <div style="display:flex;gap:10px">
@@ -410,9 +443,7 @@ function renderApp(){
           ${u.role==='admin' ? `<button class="btn btn-secondary" id="newUserBtn">${svgIcon('add')} Novo Usuário</button>` : ''}
         </div>
       </div>
-      <div class="content">
-        ${renderView()}
-      </div>
+      <div class="content">${renderView()}</div>
     </div>
     ${state.showModal ? renderModal() : ''}
     ${state.showUserModal ? renderUserModal() : ''}
@@ -421,7 +452,6 @@ function renderApp(){
   </div>`;
 }
 
-// ── VIEWS ─────────────────────────────────────────────────────────────────────
 function renderView(){
   const u = state.currentUser;
   if(state.view==='dashboard' && u.role==='employee') return renderMyFeedbacks();
@@ -433,18 +463,69 @@ function renderView(){
 }
 
 function renderDashboard(){
-  const total = state.feedbacks.length;
-  const pos = state.feedbacks.filter(f=>f.type==='positive').length;
-  const con = state.feedbacks.filter(f=>f.type==='constructive').length;
-  const emps = state.users.filter(u=>u.role==='employee').length;
-  const filtered = state.feedbacks.filter(f=> state.typeFilter==='all' || f.type===state.typeFilter);
+  const u = state.currentUser;
+  const visible = getVisibleFeedbacks();
+  const total = visible.length;
+  const pos = visible.filter(f=>f.type==='positive').length;
+  const con = visible.filter(f=>f.type==='constructive').length;
+  const teamMembers = getMyTeamMembers();
+  const filtered = visible.filter(f=> state.typeFilter==='all' || f.type===state.typeFilter);
+
+  // Rankings
+  const rankingData = teamMembers.map(emp => {
+    const fbs = visible.filter(f=>f.to_id===emp.id);
+    return { emp, pos: fbs.filter(f=>f.type==='positive').length, con: fbs.filter(f=>f.type==='constructive').length, total: fbs.length };
+  });
+  const topPos = [...rankingData].sort((a,b)=>b.pos-a.pos).slice(0,5);
+  const topCon = [...rankingData].sort((a,b)=>b.con-a.con).slice(0,5);
+
+  const posLabel = ['gold','silver','bronze','',''];
+
   return `
     <div class="stats-grid">
       <div class="stat-card dark"><div class="stat-number">${total}</div><div class="stat-label">Total de Feedbacks</div></div>
       <div class="stat-card"><div class="stat-number" style="color:var(--positive)">${pos}</div><div class="stat-label">Positivos</div></div>
       <div class="stat-card"><div class="stat-number" style="color:var(--constructive)">${con}</div><div class="stat-label">Construtivos</div></div>
-      <div class="stat-card"><div class="stat-number">${emps}</div><div class="stat-label">Colaboradores</div></div>
+      <div class="stat-card"><div class="stat-number">${teamMembers.length}</div><div class="stat-label">${u.role==='admin'?'Colaboradores':'No Meu Time'}</div></div>
     </div>
+
+    <div class="ranking-grid">
+      <div class="ranking-card">
+        <div class="ranking-header">
+          <span style="color:var(--positive);font-size:16px">✦</span>
+          <div class="ranking-title">Mais Feedbacks Positivos</div>
+        </div>
+        ${topPos.length === 0 ? '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Nenhum feedback ainda</div>' :
+          topPos.map((r,i)=>`
+          <div class="ranking-item">
+            <div class="ranking-pos ${posLabel[i]}">${i+1}</div>
+            <div class="avatar">${initials(r.emp.name)}</div>
+            <div style="flex:1">
+              <div class="ranking-name">${r.emp.name}</div>
+              <div class="ranking-dept">${r.emp.department||'—'}</div>
+            </div>
+            <div class="ranking-count pos">${r.pos}</div>
+          </div>`).join('')}
+      </div>
+      <div class="ranking-card">
+        <div class="ranking-header">
+          <span style="color:var(--constructive);font-size:16px">△</span>
+          <div class="ranking-title">Mais Feedbacks Construtivos</div>
+        </div>
+        ${topCon.length === 0 ? '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Nenhum feedback ainda</div>' :
+          topCon.map((r,i)=>`
+          <div class="ranking-item">
+            <div class="ranking-pos ${posLabel[i]}">${i+1}</div>
+            <div class="avatar">${initials(r.emp.name)}</div>
+            <div style="flex:1">
+              <div class="ranking-name">${r.emp.name}</div>
+              <div class="ranking-dept">${r.emp.department||'—'}</div>
+            </div>
+            <div class="ranking-count con">${r.con}</div>
+          </div>`).join('')}
+      </div>
+    </div>
+
     <div class="section">
       <div class="section-header">
         <div class="section-title">Feedbacks Recentes</div>
@@ -487,11 +568,12 @@ function renderMyFeedbacks(){
 }
 
 function renderAllFeedbacks(){
-  const filtered = state.feedbacks.filter(f=> state.typeFilter==='all' || f.type===state.typeFilter);
+  const visible = getVisibleFeedbacks();
+  const filtered = visible.filter(f=> state.typeFilter==='all' || f.type===state.typeFilter);
   return `
     <div class="section">
       <div class="section-header">
-        <div class="section-title">Todos os Feedbacks</div>
+        <div class="section-title">Feedbacks</div>
         <div class="filters">
           ${['all','positive','constructive'].map(t=>`
             <button class="filter-btn ${state.typeFilter===t?'active':''}" data-filter="${t}">
@@ -504,32 +586,62 @@ function renderAllFeedbacks(){
 }
 
 function renderPeople(){
-  const emps = state.users.filter(u=>u.role==='employee');
-  const canGive = state.currentUser.role==='admin' || state.currentUser.role==='leader';
+  const u = state.currentUser;
+  const members = getMyTeamMembers();
+
+  if(u.role === 'admin'){
+    // Admin sees all teams grouped
+    return TEAMS.map(team => {
+      const teamMembers = state.users.filter(x => x.role === 'employee' && x.department === team);
+      const teamLeader = state.users.find(x => x.role === 'leader' && x.department === team);
+      if(teamMembers.length === 0 && !teamLeader) return '';
+      return `
+        <div class="section">
+          <div class="section-header">
+            <div>
+              <div class="section-title">Time de ${team}</div>
+              ${teamLeader ? `<div style="font-size:12px;color:var(--muted);margin-top:3px">Líder: ${teamLeader.name}</div>` : '<div style="font-size:12px;color:var(--constructive);margin-top:3px">Sem líder cadastrado</div>'}
+            </div>
+            <span class="section-count">${teamMembers.length} colaborador${teamMembers.length!==1?'es':''}</span>
+          </div>
+          <div class="people-grid">
+            ${teamMembers.length === 0 ? '<div style="color:var(--muted);font-size:13px">Nenhum colaborador neste time.</div>' :
+              teamMembers.map(emp => renderPersonCard(emp)).join('')}
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  // Leader sees only their team
   return `
     <div class="section">
       <div class="section-header">
-        <div class="section-title">Colaboradores</div>
-        <span class="section-count">${emps.length} pessoas</span>
+        <div class="section-title">Meu Time · ${u.department}</div>
+        <span class="section-count">${members.length} colaborador${members.length!==1?'es':''}</span>
       </div>
-      <div class="people-grid">
-        ${emps.map(emp=>{
-          const myFbs = state.feedbacks.filter(f=>f.to_id===emp.id);
-          const pos = myFbs.filter(f=>f.type==='positive').length;
-          const con = myFbs.filter(f=>f.type==='constructive').length;
-          return `
-            <div class="person-card">
-              <div class="person-avatar">${initials(emp.name)}</div>
-              <div>
-                <div class="person-name">${emp.name}</div>
-                <div class="person-dept">${emp.department||'—'}</div>
-                <div class="person-counts">${myFbs.length} feedback${myFbs.length!==1?'s':''} · <span style="color:var(--positive)">${pos}✦</span> <span style="color:var(--constructive)">${con}△</span></div>
-              </div>
-              ${canGive ? `<button class="btn btn-secondary btn-sm" data-quick-fb="${emp.id}">${svgIcon('add')} Feedback</button>` : ''}
-              ${state.currentUser.role==='admin' ? `<button class="btn btn-danger btn-sm" data-delete-user="${emp.id}" data-delete-user-name="${emp.name}">🗑 Excluir</button>` : ''}
-            </div>`;
-        }).join('')}
+      ${members.length === 0
+        ? `<div class="empty-state"><div class="empty-icon">◎</div><div class="empty-title">Nenhum colaborador</div><div class="empty-text">Ainda não há colaboradores cadastrados no time de ${u.department}.</div></div>`
+        : `<div class="people-grid">${members.map(emp => renderPersonCard(emp)).join('')}</div>`}
+    </div>`;
+}
+
+function renderPersonCard(emp){
+  const u = state.currentUser;
+  const visible = getVisibleFeedbacks();
+  const fbs = visible.filter(f=>f.to_id===emp.id);
+  const pos = fbs.filter(f=>f.type==='positive').length;
+  const con = fbs.filter(f=>f.type==='constructive').length;
+  const canGive = canGiveFeedbackTo(emp);
+  return `
+    <div class="person-card">
+      <div class="person-avatar">${initials(emp.name)}</div>
+      <div>
+        <div class="person-name">${emp.name}</div>
+        <div class="person-dept">${emp.department||'—'}</div>
+        <div class="person-counts">${fbs.length} feedback${fbs.length!==1?'s':''} · <span style="color:var(--positive)">${pos}✦</span> <span style="color:var(--constructive)">${con}△</span></div>
       </div>
+      ${canGive ? `<button class="btn btn-secondary btn-sm" data-quick-fb="${emp.id}">${svgIcon('add')} Feedback</button>` : ''}
+      ${u.role==='admin' ? `<button class="btn btn-danger btn-sm" data-delete-user="${emp.id}" data-delete-user-name="${emp.name}">🗑 Excluir</button>` : ''}
     </div>`;
 }
 
@@ -544,7 +656,7 @@ function renderUsers(){
       <div class="users-table">
         <table>
           <thead><tr>
-            <th>Nome</th><th>E-mail</th><th>Perfil</th><th>Departamento</th><th></th>
+            <th>Nome</th><th>E-mail</th><th>Perfil</th><th>Time / Departamento</th><th></th>
           </tr></thead>
           <tbody>
             ${allUsers.map(u=>`
@@ -554,7 +666,7 @@ function renderUsers(){
                 </div></td>
                 <td>${u.email}</td>
                 <td><span class="role-pill role-${u.role}">${u.role==='admin'?'Admin':u.role==='leader'?'Líder':'Colaborador'}</span></td>
-                <td>${u.department||'—'}</td>
+                <td>${u.department ? `<span class="team-badge">${u.department}</span>` : '—'}</td>
                 <td>${u.id!==state.currentUser.id ? `<button class="btn btn-danger btn-sm" data-delete-user="${u.id}" data-delete-user-name="${u.name}">🗑 Excluir</button>` : ''}</td>
               </tr>`).join('')}
           </tbody>
@@ -580,8 +692,7 @@ function renderFeedbackList(list, showFrom, showTo){
             <div class="avatar">${from ? initials(from.name) : '?'}</div>
             <div>
               ${showFrom ? `<div class="feedback-from">${from ? from.name : 'Desconhecido'}</div>` : ''}
-              ${showTo && to ? `<div class="feedback-to">→ para ${to.name}</div>` : ''}
-              ${!showTo && showFrom ? `<div class="feedback-to">${fb.category}</div>` : ''}
+              ${showTo && to ? `<div class="feedback-to">→ para ${to.name}${to.department ? ' · '+to.department : ''}</div>` : ''}
             </div>
           </div>
           <div class="feedback-badges">
@@ -597,18 +708,17 @@ function renderFeedbackList(list, showFrom, showTo){
   }).join('')}</div>`;
 }
 
-// ── MODALS ────────────────────────────────────────────────────────────────────
 function renderConfirm(){
   const c = state.confirm;
   const isFb = c.type === 'feedback';
   return `
   <div class="confirm-overlay">
     <div class="confirm-box">
-      <div class="confirm-title">${isFb ? 'Excluir Feedback' : 'Excluir Colaborador'}</div>
+      <div class="confirm-title">${isFb ? 'Excluir Feedback' : 'Excluir Usuário'}</div>
       <div class="confirm-text">
-        ${isFb 
+        ${isFb
           ? `Tem certeza que deseja excluir o feedback<br><strong>"${c.name}"</strong>?<br>Esta ação não pode ser desfeita.`
-          : `Tem certeza que deseja excluir o colaborador<br><strong>${c.name}</strong>?<br>Todos os feedbacks dele também serão excluídos.`}
+          : `Tem certeza que deseja excluir<br><strong>${c.name}</strong>?<br>Todos os feedbacks também serão excluídos.`}
       </div>
       <div class="confirm-actions">
         <button class="btn btn-secondary" id="cancelConfirm">Cancelar</button>
@@ -620,10 +730,7 @@ function renderConfirm(){
 
 function renderModal(){
   const f = state.form;
-  const targets = state.users.filter(u =>
-    u.id !== state.currentUser.id &&
-    (state.currentUser.role === 'admin' ? true : u.role === 'employee')
-  );
+  const targets = getMyTeamMembers();
   return `
   <div class="modal-overlay" id="modalOverlay">
     <div class="modal">
@@ -644,7 +751,7 @@ function renderModal(){
             <label class="form-label">Colaborador</label>
             <select class="form-select" id="fbTo">
               <option value="">Selecione...</option>
-              ${targets.map(u=>`<option value="${u.id}" ${f.toId===u.id?'selected':''}>${u.name}</option>`).join('')}
+              ${targets.map(u=>`<option value="${u.id}" ${f.toId===u.id?'selected':''}>${u.name} · ${u.department||'—'}</option>`).join('')}
             </select>
           </div>
           <div class="form-group">
@@ -687,8 +794,11 @@ function renderUserModal(){
             <input class="form-input" id="uName" placeholder="Nome Sobrenome" value="${u.name}">
           </div>
           <div class="form-group">
-            <label class="form-label">Departamento</label>
-            <input class="form-input" id="uDept" placeholder="Ex: Tecnologia" value="${u.department}">
+            <label class="form-label">Time / Departamento</label>
+            <select class="form-select" id="uDept">
+              <option value="">Selecione o time...</option>
+              ${TEAMS.map(t=>`<option value="${t}" ${u.department===t?'selected':''}>${t}</option>`).join('')}
+            </select>
           </div>
         </div>
         <div class="form-group">
@@ -718,43 +828,34 @@ function renderUserModal(){
   </div>`;
 }
 
-// ── Bind ──────────────────────────────────────────────────────────────────────
 function bindApp(){
-  // Nav
   document.querySelectorAll('[data-view]').forEach(el=>{
     el.onclick = ()=>{ state.view=el.dataset.view; state.typeFilter='all'; render(); };
   });
   document.getElementById('logoutBtn').onclick = ()=>{ state.currentUser=null; render(); };
 
-  // Filters
   document.querySelectorAll('[data-filter]').forEach(el=>{
     el.onclick = ()=>{ state.typeFilter=el.dataset.filter; render(); };
   });
 
-  // New feedback btn
   const newFbBtn = document.getElementById('newFbBtn');
   if(newFbBtn) newFbBtn.onclick = ()=>{ state.showModal=true; render(); };
 
-  // New user btn
   const newUserBtn = document.getElementById('newUserBtn');
   if(newUserBtn) newUserBtn.onclick = ()=>{ state.showUserModal=true; render(); };
 
-  // Quick feedback from people cards
   document.querySelectorAll('[data-quick-fb]').forEach(el=>{
     el.onclick = ()=>{ state.form.toId=el.dataset.quickFb; state.showModal=true; render(); };
   });
 
-  // Delete feedback buttons
   document.querySelectorAll('[data-delete-fb]').forEach(el=>{
     el.onclick = ()=>{ state.confirm = { type:'feedback', id:el.dataset.deleteFb, name:el.dataset.deleteFbTitle }; render(); };
   });
 
-  // Delete user buttons
   document.querySelectorAll('[data-delete-user]').forEach(el=>{
     el.onclick = ()=>{ state.confirm = { type:'user', id:el.dataset.deleteUser, name:el.dataset.deleteUserName }; render(); };
   });
 
-  // Confirm dialog
   if(state.confirm){
     document.getElementById('cancelConfirm').onclick = ()=>{ state.confirm=null; render(); };
     document.getElementById('confirmDelete').onclick = ()=>{
@@ -763,7 +864,6 @@ function bindApp(){
     };
   }
 
-  // Feedback modal
   if(state.showModal){
     document.getElementById('closeModal').onclick = ()=>{ state.showModal=false; render(); };
     document.getElementById('cancelModal').onclick = ()=>{ state.showModal=false; render(); };
@@ -782,7 +882,6 @@ function bindApp(){
     document.getElementById('submitFb').onclick = submitFeedback;
   }
 
-  // User modal
   if(state.showUserModal){
     document.getElementById('closeUserModal').onclick = ()=>{ state.showUserModal=false; render(); };
     document.getElementById('cancelUserModal').onclick = ()=>{ state.showUserModal=false; render(); };
@@ -790,13 +889,12 @@ function bindApp(){
     document.getElementById('uName').oninput = e=>state.userForm.name=e.target.value;
     document.getElementById('uEmail').oninput = e=>state.userForm.email=e.target.value;
     document.getElementById('uPass').oninput = e=>state.userForm.password=e.target.value;
-    document.getElementById('uDept').oninput = e=>state.userForm.department=e.target.value;
+    document.getElementById('uDept').onchange = e=>state.userForm.department=e.target.value;
     document.getElementById('uRole').onchange = e=>state.userForm.role=e.target.value;
     document.getElementById('submitUser').onclick = submitUser;
   }
 }
 
-// ── SVG Icons ────────────────────────────────────────────────────────────────
 function svgIcon(n){
   const s='stroke="currentColor" stroke-width="1.5" fill="none"';
   const icons={
@@ -811,7 +909,6 @@ function svgIcon(n){
   return icons[n]||'';
 }
 
-// ── Init ─────────────────────────────────────────────────────────────────────
 render();
 </script>
 </body>
