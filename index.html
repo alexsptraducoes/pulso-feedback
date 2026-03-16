@@ -233,6 +233,29 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
   background-size:contain;background-repeat:no-repeat;background-position:left center;
   display:block;margin-bottom:6px;
 }
+
+/* MESSAGES */
+.msg-list{display:flex;flex-direction:column;gap:12px}
+.msg-card{background:var(--white);border:1px solid var(--border);border-radius:4px;padding:20px 24px;transition:box-shadow .15s}
+.msg-card:hover{box-shadow:var(--shadow)}
+.msg-card.unread{border-left:3px solid var(--accent)}
+.msg-type-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:2px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+.msg-elogio{background:#d8f3dc;color:#2d6a4f}
+.msg-critica{background:#fde8e3;color:#c44b2b}
+.msg-reclamacao{background:#fff3cd;color:#856404}
+.msg-sugestao{background:#d0e8ff;color:#0a58ca}
+.msg-title{font-family:'Fraunces',serif;font-size:16px;font-weight:600;color:var(--ink);margin:10px 0 6px}
+.msg-content{font-size:13px;color:#3d3830;line-height:1.65}
+.msg-from{font-size:12px;color:var(--muted);margin-top:10px}
+.msg-reply-box{margin-top:16px;padding:14px;background:var(--cream);border-radius:3px;border-left:3px solid var(--accent)}
+.msg-reply-label{font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+.msg-reply-text{font-size:13px;color:var(--ink);line-height:1.6}
+.msg-reply-input{width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:3px;font-family:'DM Sans',sans-serif;font-size:13px;color:var(--ink);background:var(--white);resize:vertical;min-height:80px;margin-top:12px}
+.msg-reply-input:focus{outline:none;border-color:var(--ink)}
+.msg-stats{display:flex;gap:16px;margin-bottom:24px;flex-wrap:wrap}
+.msg-stat{background:var(--white);border:1px solid var(--border);border-radius:4px;padding:16px 20px;display:flex;align-items:center;gap:12px}
+.msg-stat-num{font-family:'Fraunces',serif;font-size:28px;font-weight:700}
+.msg-stat-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
 </style>
 </head>
 <body>
@@ -264,6 +287,11 @@ let state = {
   loginLoading: false,
   toast: null,
   confirm: null,
+  messages: [],
+  showMsgModal: false,
+  msgForm: { type:'Elogio', title:'', content:'' },
+  replyText: '',
+  replyingId: null,
 };
 
 // Helpers
@@ -309,6 +337,8 @@ async function loadData(){
   ]);
   state.users = users || [];
   state.feedbacks = feedbacks || [];
+  const { data: messages } = await sb.from('messages').select('*').order('created_at', { ascending: false });
+  state.messages = messages || [];
 }
 
 async function handleLogin(){
@@ -403,6 +433,35 @@ function sendPushNotification(toUser, fromUser, feedbackTitle, feedbackType){
   });
 }
 
+
+async function submitMessage(){
+  const f = state.msgForm;
+  if(!f.title || !f.content) return;
+  const { data, error } = await sb.from('messages').insert({
+    from_id: state.currentUser.id,
+    type: f.type, title: f.title, content: f.content
+  }).select().single();
+  if(!error && data){
+    state.messages = [data, ...state.messages];
+    state.showMsgModal = false;
+    state.msgForm = { type:'Elogio', title:'', content:'' };
+    showToast('✦ Mensagem enviada com sucesso!');
+  }
+}
+
+async function submitReply(msgId){
+  if(!state.replyText.trim()) return;
+  const { data, error } = await sb.from('messages')
+    .update({ reply: state.replyText, replied_at: new Date().toISOString() })
+    .eq('id', msgId).select().single();
+  if(!error && data){
+    state.messages = state.messages.map(m => m.id===msgId ? data : m);
+    state.replyingId = null;
+    state.replyText = '';
+    showToast('Resposta enviada!');
+  }
+}
+
 // Render
 function render(){
   const app = document.getElementById('app');
@@ -445,11 +504,12 @@ function renderApp(){
         {id:'dashboard',label:'Visão Geral',icon:'dash'},
         {id:'all',label:'Feedbacks',icon:'fb'},
         {id:'people',label:'Meu Time',icon:'ppl'},
-        ...(u.role==='admin' ? [{id:'users',label:'Usuários',icon:'usr'}] : [])
+        ...(u.role==='admin' ? [{id:'users',label:'Usuários',icon:'usr'}] : []),
+        {id:'messages',label:'Mensagens',icon:'msg'}
       ];
 
   const roleLabel = u.role==='admin' ? 'Admin · CEO' : u.role==='leader' ? 'Líder' : 'Colaborador';
-  const viewTitles = {dashboard: u.role==='employee' ? 'Meus Feedbacks' : 'Visão Geral', all:'Feedbacks', people: u.role==='admin' ? 'Todos os Times' : 'Meu Time', users:'Gerenciar Usuários'};
+  const viewTitles = {dashboard: u.role==='employee' ? 'Meus Feedbacks' : 'Visão Geral', all:'Feedbacks', people: u.role==='admin' ? 'Todos os Times' : 'Meu Time', users:'Gerenciar Usuários', messages:'Mensagens'};
 
   return `
   <div class="app">
@@ -479,6 +539,7 @@ function renderApp(){
         </div>
         <div style="display:flex;gap:10px">
           ${canGive ? `<button class="btn btn-primary" id="newFbBtn">${svgIcon('add')} Novo Feedback</button>` : ''}
+          ${u.role!=='admin' && state.view==='messages' ? `<button class="btn btn-primary" id="newMsgBtn">${svgIcon('add')} Nova Mensagem</button>` : ''}
           ${u.role==='admin' ? `<button class="btn btn-secondary" id="newUserBtn">${svgIcon('add')} Novo Usuário</button>` : ''}
         </div>
       </div>
@@ -486,6 +547,7 @@ function renderApp(){
     </div>
     ${state.showModal ? renderModal() : ''}
     ${state.showUserModal ? renderUserModal() : ''}
+    ${state.showMsgModal ? renderMsgModal() : ''}
     ${state.confirm ? renderConfirm() : ''}
     ${state.toast ? `<div class="toast">${state.toast}</div>` : ''}
   </div>`;
@@ -498,6 +560,7 @@ function renderView(){
   if(state.view==='all') return renderAllFeedbacks();
   if(state.view==='people') return renderPeople();
   if(state.view==='users') return renderUsers();
+  if(state.view==='messages') return renderMessages();
   return '';
 }
 
@@ -867,6 +930,109 @@ function renderUserModal(){
   </div>`;
 }
 
+
+function renderMessages(){
+  const u = state.currentUser;
+  const isAdmin = u.role === 'admin';
+  const msgs = isAdmin ? state.messages : state.messages.filter(m => m.from_id === u.id);
+  const unread = msgs.filter(m => !m.reply).length;
+
+  const typeColors = { Elogio:'elogio', Crítica:'critica', Reclamação:'reclamacao', Sugestão:'sugestao' };
+  const typeEmoji = { Elogio:'✦', Crítica:'△', Reclamação:'⚠', Sugestão:'💡' };
+
+  return `
+    <div class="msg-stats">
+      <div class="msg-stat">
+        <div class="msg-stat-num" style="color:var(--accent)">${msgs.length}</div>
+        <div class="msg-stat-label">Total de<br>Mensagens</div>
+      </div>
+      <div class="msg-stat">
+        <div class="msg-stat-num" style="color:var(--constructive)">${unread}</div>
+        <div class="msg-stat-label">Sem<br>Resposta</div>
+      </div>
+      <div class="msg-stat">
+        <div class="msg-stat-num" style="color:var(--positive)">${msgs.length - unread}</div>
+        <div class="msg-stat-label">Respondidas</div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">${isAdmin ? 'Todas as Mensagens' : 'Minhas Mensagens'}</div>
+        ${!isAdmin ? `<button class="btn btn-primary btn-sm" id="newMsgBtn">${svgIcon('add')} Nova Mensagem</button>` : ''}
+      </div>
+      ${msgs.length === 0 ? `
+        <div class="empty-state">
+          <div class="empty-icon">✉</div>
+          <div class="empty-title">${isAdmin ? 'Nenhuma mensagem ainda' : 'Nenhuma mensagem enviada'}</div>
+          <div class="empty-text">${isAdmin ? 'As mensagens dos colaboradores aparecerão aqui.' : 'Clique em Nova Mensagem para se comunicar com o CEO.'}</div>
+        </div>` :
+        `<div class="msg-list">${msgs.map(m => {
+          const from = getUserById(m.from_id);
+          const isReplying = state.replyingId === m.id;
+          return `
+            <div class="msg-card ${!m.reply ? 'unread' : ''}">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                <span class="msg-type-badge msg-${typeColors[m.type]||'elogio'}">${typeEmoji[m.type]||'✦'} ${m.type}</span>
+                <span style="font-size:11px;color:var(--muted)">${fmt(m.created_at)}</span>
+              </div>
+              <div class="msg-title">${m.title}</div>
+              <div class="msg-content">${m.content}</div>
+              ${isAdmin ? `<div class="msg-from">De: <strong>${from ? from.name : 'Desconhecido'}</strong>${from && from.department ? ' · '+from.department : ''}</div>` : ''}
+              ${m.reply ? `
+                <div class="msg-reply-box">
+                  <div class="msg-reply-label">Resposta do CEO</div>
+                  <div class="msg-reply-text">${m.reply}</div>
+                  <div style="font-size:11px;color:var(--muted);margin-top:6px">${fmt(m.replied_at)}</div>
+                </div>` : isAdmin ? `
+                <div style="margin-top:12px">
+                  ${isReplying ? `
+                    <textarea class="msg-reply-input" id="replyInput_${m.id}" placeholder="Escreva sua resposta...">${state.replyText}</textarea>
+                    <div style="display:flex;gap:8px;margin-top:8px">
+                      <button class="btn btn-primary btn-sm" data-submit-reply="${m.id}">Enviar Resposta</button>
+                      <button class="btn btn-secondary btn-sm" data-cancel-reply="${m.id}">Cancelar</button>
+                    </div>` : `
+                    <button class="btn btn-secondary btn-sm" data-reply="${m.id}">Responder</button>`}
+                </div>` : `<div style="font-size:12px;color:var(--muted);margin-top:10px;font-style:italic">Aguardando resposta do CEO...</div>`}
+            </div>`;
+        }).join('')}</div>`}
+    </div>`;
+}
+
+function renderMsgModal(){
+  const f = state.msgForm;
+  const types = ['Elogio','Crítica','Reclamação','Sugestão'];
+  const typeColors = { Elogio:'positive', Crítica:'constructive', Reclamação:'constructive', Sugestão:'positive' };
+  return `
+  <div class="modal-overlay" id="msgModalOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">Nova Mensagem</div>
+        <button class="modal-close" id="closeMsgModal">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Tipo</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            ${types.map(t=>`<button class="type-btn ${f.type===t?'sel-'+typeColors[t]:''}" data-msgtype="${t}" style="flex:none;padding:8px 14px">${t}</button>`).join('')}
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Título</label>
+          <input class="form-input" id="msgTitle" placeholder="Resumo da mensagem..." value="${f.title}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Mensagem</label>
+          <textarea class="form-textarea" id="msgContent" placeholder="Escreva sua mensagem com clareza e respeito...">${f.content}</textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancelMsgModal">Cancelar</button>
+        <button class="btn btn-primary" id="submitMsg" ${!f.title||!f.content?'disabled':''}>Enviar →</button>
+      </div>
+    </div>
+  </div>`;
+}
+
 function bindApp(){
   document.querySelectorAll('[data-view]').forEach(el=>{
     el.onclick = ()=>{ state.view=el.dataset.view; state.typeFilter='all'; render(); };
@@ -921,6 +1087,39 @@ function bindApp(){
     document.getElementById('submitFb').onclick = submitFeedback;
   }
 
+
+  // Messages
+  const newMsgBtn = document.getElementById('newMsgBtn');
+  if(newMsgBtn) newMsgBtn.onclick = ()=>{ state.showMsgModal=true; render(); };
+
+  if(state.showMsgModal){
+    document.getElementById('closeMsgModal').onclick = ()=>{ state.showMsgModal=false; render(); };
+    document.getElementById('cancelMsgModal').onclick = ()=>{ state.showMsgModal=false; render(); };
+    document.getElementById('msgModalOverlay').onclick = e=>{ if(e.target.id==='msgModalOverlay'){ state.showMsgModal=false; render(); }};
+    document.querySelectorAll('[data-msgtype]').forEach(el=>{
+      el.onclick = ()=>{ state.msgForm.type=el.dataset.msgtype; render(); };
+    });
+    const msgTitle = document.getElementById('msgTitle');
+    if(msgTitle){ msgTitle.oninput = e=>{ state.msgForm.title=e.target.value; document.getElementById('submitMsg').disabled=!state.msgForm.title||!state.msgForm.content; }; }
+    const msgContent = document.getElementById('msgContent');
+    if(msgContent){ msgContent.oninput = e=>{ state.msgForm.content=e.target.value; document.getElementById('submitMsg').disabled=!state.msgForm.title||!state.msgForm.content; }; }
+    document.getElementById('submitMsg').onclick = submitMessage;
+  }
+
+  // Reply buttons
+  document.querySelectorAll('[data-reply]').forEach(el=>{
+    el.onclick = ()=>{ state.replyingId=el.dataset.reply; state.replyText=''; render(); };
+  });
+  document.querySelectorAll('[data-cancel-reply]').forEach(el=>{
+    el.onclick = ()=>{ state.replyingId=null; state.replyText=''; render(); };
+  });
+  document.querySelectorAll('[data-submit-reply]').forEach(el=>{
+    el.onclick = ()=>{ submitReply(el.dataset.submitReply); };
+  });
+  document.querySelectorAll('[id^="replyInput_"]').forEach(el=>{
+    el.oninput = e=>{ state.replyText=e.target.value; };
+  });
+
   if(state.showUserModal){
     document.getElementById('closeUserModal').onclick = ()=>{ state.showUserModal=false; render(); };
     document.getElementById('cancelUserModal').onclick = ()=>{ state.showUserModal=false; render(); };
@@ -944,6 +1143,7 @@ function svgIcon(n){
     my:`<svg width="15" height="15" viewBox="0 0 24 24" ${s}><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>`,
     add:`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
     logout:`<svg width="13" height="13" viewBox="0 0 24 24" ${s}><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`,
+    msg:`<svg width="15" height="15" viewBox="0 0 24 24" ${s}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>`,
   };
   return icons[n]||'';
 }
