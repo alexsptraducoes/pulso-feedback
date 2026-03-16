@@ -256,6 +256,19 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .msg-stat{background:var(--white);border:1px solid var(--border);border-radius:4px;padding:16px 20px;display:flex;align-items:center;gap:12px}
 .msg-stat-num{font-family:'Fraunces',serif;font-size:28px;font-weight:700}
 .msg-stat-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+
+/* ANNOUNCEMENTS */
+.ann-list{display:flex;flex-direction:column;gap:12px}
+.ann-card{background:var(--white);border:1px solid var(--border);border-radius:4px;padding:20px 24px;border-left:3px solid var(--border)}
+.ann-card.urgent{border-left-color:var(--constructive);background:#fffaf9}
+.ann-card.normal{border-left-color:var(--accent)}
+.ann-priority{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:2px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px}
+.ann-priority.urgent{background:var(--constructive-bg);color:var(--constructive)}
+.ann-priority.normal{background:var(--cream);color:var(--muted)}
+.ann-title{font-family:'Fraunces',serif;font-size:17px;font-weight:600;color:var(--ink);margin-bottom:8px}
+.ann-content{font-size:13px;color:#3d3830;line-height:1.65}
+.ann-footer{display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding-top:12px;border-top:1px solid var(--cream)}
+.ann-date{font-size:11px;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -288,6 +301,9 @@ let state = {
   toast: null,
   confirm: null,
   messages: [],
+  announcements: [],
+  showAnnModal: false,
+  annForm: { title:'', content:'', priority:'normal' },
   showMsgModal: false,
   msgForm: { type:'Elogio', title:'', content:'' },
   replyText: '',
@@ -339,6 +355,8 @@ async function loadData(){
   state.feedbacks = feedbacks || [];
   const { data: messages } = await sb.from('messages').select('*').order('created_at', { ascending: false });
   state.messages = messages || [];
+  const { data: announcements } = await sb.from('announcements').select('*').order('created_at', { ascending: false });
+  state.announcements = announcements || [];
 }
 
 async function handleLogin(){
@@ -434,6 +452,31 @@ function sendPushNotification(toUser, fromUser, feedbackTitle, feedbackType){
 }
 
 
+
+async function submitAnnouncement(){
+  const f = state.annForm;
+  if(!f.title || !f.content) return;
+  const { data, error } = await sb.from('announcements').insert({
+    from_id: state.currentUser.id,
+    title: f.title, content: f.content, priority: f.priority
+  }).select().single();
+  if(!error && data){
+    state.announcements = [data, ...state.announcements];
+    state.showAnnModal = false;
+    state.annForm = { title:'', content:'', priority:'normal' };
+    showToast('✦ Aviso publicado com sucesso!');
+  }
+}
+
+async function deleteAnnouncement(id){
+  const { error } = await sb.from('announcements').delete().eq('id', id);
+  if(!error){
+    state.announcements = state.announcements.filter(a=>a.id!==id);
+    state.confirm = null;
+    showToast('Aviso excluído.');
+  }
+}
+
 async function submitMessage(){
   const f = state.msgForm;
   if(!f.title || !f.content) return;
@@ -499,17 +542,21 @@ function renderApp(){
   const u = state.currentUser;
   const canGive = u.role === 'admin' || u.role === 'leader';
   const navItems = u.role === 'employee'
-    ? [{id:'dashboard',label:'Meus Feedbacks',icon:'my'}]
+    ? [
+        {id:'dashboard',label:'Meus Feedbacks',icon:'my'},
+        {id:'messages',label:'Mensagens',icon:'msg'}
+      ]
     : [
         {id:'dashboard',label:'Visão Geral',icon:'dash'},
         {id:'all',label:'Feedbacks',icon:'fb'},
         {id:'people',label:'Meu Time',icon:'ppl'},
         ...(u.role==='admin' ? [{id:'users',label:'Usuários',icon:'usr'}] : []),
-        {id:'messages',label:'Mensagens',icon:'msg'}
+        {id:'messages',label:'Mensagens',icon:'msg'},
+        {id:'announcements',label:'Quadro de Avisos',icon:'ann'}
       ];
 
   const roleLabel = u.role==='admin' ? 'Admin · CEO' : u.role==='leader' ? 'Líder' : 'Colaborador';
-  const viewTitles = {dashboard: u.role==='employee' ? 'Meus Feedbacks' : 'Visão Geral', all:'Feedbacks', people: u.role==='admin' ? 'Todos os Times' : 'Meu Time', users:'Gerenciar Usuários', messages:'Mensagens'};
+  const viewTitles = {dashboard: u.role==='employee' ? 'Meus Feedbacks' : 'Visão Geral', all:'Feedbacks', people: u.role==='admin' ? 'Todos os Times' : 'Meu Time', users:'Gerenciar Usuários', messages:'Mensagens', announcements:'Quadro de Avisos'};
 
   return `
   <div class="app">
@@ -540,6 +587,7 @@ function renderApp(){
         <div style="display:flex;gap:10px">
           ${canGive ? `<button class="btn btn-primary" id="newFbBtn">${svgIcon('add')} Novo Feedback</button>` : ''}
           ${u.role!=='admin' && state.view==='messages' ? `<button class="btn btn-primary" id="newMsgBtn">${svgIcon('add')} Nova Mensagem</button>` : ''}
+          ${u.role==='admin' && state.view==='announcements' ? `<button class="btn btn-primary" id="newAnnBtn">${svgIcon('add')} Novo Aviso</button>` : ''}
           ${u.role==='admin' ? `<button class="btn btn-secondary" id="newUserBtn">${svgIcon('add')} Novo Usuário</button>` : ''}
         </div>
       </div>
@@ -548,6 +596,7 @@ function renderApp(){
     ${state.showModal ? renderModal() : ''}
     ${state.showUserModal ? renderUserModal() : ''}
     ${state.showMsgModal ? renderMsgModal() : ''}
+    ${state.showAnnModal ? renderAnnModal() : ''}
     ${state.confirm ? renderConfirm() : ''}
     ${state.toast ? `<div class="toast">${state.toast}</div>` : ''}
   </div>`;
@@ -561,6 +610,7 @@ function renderView(){
   if(state.view==='people') return renderPeople();
   if(state.view==='users') return renderUsers();
   if(state.view==='messages') return renderMessages();
+  if(state.view==='announcements') return renderAnnouncements();
   return '';
 }
 
@@ -1033,6 +1083,73 @@ function renderMsgModal(){
   </div>`;
 }
 
+
+function renderAnnouncements(){
+  const u = state.currentUser;
+  const isAdmin = u.role === 'admin';
+  const anns = state.announcements;
+  return `
+    <div class="section">
+      <div class="section-header">
+        <div>
+          <div class="section-title">Quadro de Avisos</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:3px">${anns.length} aviso${anns.length!==1?'s':''} publicado${anns.length!==1?'s':''}</div>
+        </div>
+        ${isAdmin ? `<button class="btn btn-primary" id="newAnnBtn">${svgIcon('add')} Novo Aviso</button>` : ''}
+      </div>
+      ${anns.length === 0 ? `
+        <div class="empty-state">
+          <div class="empty-icon">📋</div>
+          <div class="empty-title">Nenhum aviso publicado</div>
+          <div class="empty-text">${isAdmin ? 'Clique em Novo Aviso para publicar um comunicado para o time.' : 'Nenhum aviso publicado ainda. Fique de olho!'}</div>
+        </div>` :
+        `<div class="ann-list">${anns.map(a => `
+          <div class="ann-card ${a.priority}">
+            <span class="ann-priority ${a.priority}">${a.priority==='urgent' ? '⚠ Urgente' : '📋 Informativo'}</span>
+            <div class="ann-title">${a.title}</div>
+            <div class="ann-content">${a.content}</div>
+            <div class="ann-footer">
+              <div class="ann-date">${fmt(a.created_at)}</div>
+              ${isAdmin ? `<button class="btn btn-danger btn-sm" data-delete-ann="${a.id}" data-delete-ann-title="${a.title.replace(/"/g,'&quot;')}">🗑 Excluir</button>` : ''}
+            </div>
+          </div>`).join('')}</div>`}
+    </div>`;
+}
+
+function renderAnnModal(){
+  const f = state.annForm;
+  return `
+  <div class="modal-overlay" id="annModalOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">Novo Aviso</div>
+        <button class="modal-close" id="closeAnnModal">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Prioridade</label>
+          <div class="type-toggle">
+            <button class="type-btn ${f.priority==='normal'?'sel-positive':''}" data-annpriority="normal">📋 Informativo</button>
+            <button class="type-btn ${f.priority==='urgent'?'sel-constructive':''}" data-annpriority="urgent">⚠ Urgente</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Título</label>
+          <input class="form-input" id="annTitle" placeholder="Título do aviso..." value="${f.title}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Conteúdo</label>
+          <textarea class="form-textarea" id="annContent" placeholder="Escreva o comunicado para o time...">${f.content}</textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancelAnnModal">Cancelar</button>
+        <button class="btn btn-primary" id="submitAnn" ${!f.title||!f.content?'disabled':''}>Publicar →</button>
+      </div>
+    </div>
+  </div>`;
+}
+
 function bindApp(){
   document.querySelectorAll('[data-view]').forEach(el=>{
     el.onclick = ()=>{ state.view=el.dataset.view; state.typeFilter='all'; render(); };
@@ -1065,6 +1182,7 @@ function bindApp(){
     document.getElementById('cancelConfirm').onclick = ()=>{ state.confirm=null; render(); };
     document.getElementById('confirmDelete').onclick = ()=>{
       if(state.confirm.type==='feedback') deleteFeedback(state.confirm.id);
+      else if(state.confirm.type==='announcement') deleteAnnouncement(state.confirm.id);
       else deleteUser(state.confirm.id);
     };
   }
@@ -1087,6 +1205,29 @@ function bindApp(){
     document.getElementById('submitFb').onclick = submitFeedback;
   }
 
+
+
+  // Announcements
+  const newAnnBtn = document.getElementById('newAnnBtn');
+  if(newAnnBtn) newAnnBtn.onclick = ()=>{ state.showAnnModal=true; render(); };
+
+  document.querySelectorAll('[data-delete-ann]').forEach(el=>{
+    el.onclick = ()=>{ state.confirm = { type:'announcement', id:el.dataset.deleteAnn, name:el.dataset.deleteAnnTitle }; render(); };
+  });
+
+  if(state.showAnnModal){
+    document.getElementById('closeAnnModal').onclick = ()=>{ state.showAnnModal=false; render(); };
+    document.getElementById('cancelAnnModal').onclick = ()=>{ state.showAnnModal=false; render(); };
+    document.getElementById('annModalOverlay').onclick = e=>{ if(e.target.id==='annModalOverlay'){ state.showAnnModal=false; render(); }};
+    document.querySelectorAll('[data-annpriority]').forEach(el=>{
+      el.onclick = ()=>{ state.annForm.priority=el.dataset.annpriority; render(); };
+    });
+    const annTitle = document.getElementById('annTitle');
+    if(annTitle){ annTitle.oninput = e=>{ state.annForm.title=e.target.value; document.getElementById('submitAnn').disabled=!state.annForm.title||!state.annForm.content; }; }
+    const annContent = document.getElementById('annContent');
+    if(annContent){ annContent.oninput = e=>{ state.annForm.content=e.target.value; document.getElementById('submitAnn').disabled=!state.annForm.title||!state.annForm.content; }; }
+    document.getElementById('submitAnn').onclick = submitAnnouncement;
+  }
 
   // Messages
   const newMsgBtn = document.getElementById('newMsgBtn');
@@ -1144,6 +1285,7 @@ function svgIcon(n){
     add:`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
     logout:`<svg width="13" height="13" viewBox="0 0 24 24" ${s}><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`,
     msg:`<svg width="15" height="15" viewBox="0 0 24 24" ${s}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>`,
+    ann:`<svg width="15" height="15" viewBox="0 0 24 24" ${s}><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/><line x1="9" y1="10" x2="15" y2="10"/><line x1="9" y1="14" x2="13" y2="14"/></svg>`,
   };
   return icons[n]||'';
 }
