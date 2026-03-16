@@ -575,6 +575,27 @@ function avatarImg(user, cls='avatar'){
   return `<div class="${cls}">${user?initials(user.name):'?'}</div>`;
 }
 
+
+async function deleteMessage(id){
+  const { error } = await sb.from('messages').delete().eq('id', id);
+  if(!error){
+    state.messages = state.messages.filter(m=>m.id!==id);
+    state.confirm = null;
+    showToast('Mensagem excluída.');
+  }
+}
+
+async function deletePoll(id){
+  await sb.from('poll_votes').delete().eq('poll_id', id);
+  const { error } = await sb.from('polls').delete().eq('id', id);
+  if(!error){
+    state.polls = state.polls.filter(p=>p.id!==id);
+    state.pollVotes = state.pollVotes.filter(v=>v.poll_id!==id);
+    state.confirm = null;
+    showToast('Enquete excluída.');
+  }
+}
+
 async function submitPoll(){
   const f = state.pollForm;
   const opts = f.options.filter(o=>o.trim());
@@ -1271,7 +1292,7 @@ function renderMessages(){
               </div>
               <div class="msg-title">${m.title}</div>
               <div class="msg-content">${m.content}</div>
-              ${isAdmin ? `<div class="msg-from">De: <strong>${from ? from.name : 'Desconhecido'}</strong>${from && from.department ? ' · '+from.department : ''}</div>` : ''}
+              ${isAdmin ? `<div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px"><div class="msg-from">De: <strong>${from ? from.name : 'Desconhecido'}</strong>${from && from.department ? ' · '+from.department : ''}</div><button class="btn btn-danger btn-sm" data-delete-msg="${m.id}" data-delete-msg-title="Mensagem de ${from?from.name:'?'}">🗑 Excluir</button></div>` : ''}
               ${m.reply ? `
                 <div class="msg-reply-box">
                   <div class="msg-reply-label">Resposta do CEO</div>
@@ -1465,6 +1486,7 @@ function renderPolls(){
               <div class="poll-footer">
                 ${total} voto${total!==1?'s':''} · ${poll.active?'Votação aberta':'Votação encerrada'}
                 ${isAdmin && poll.active ? `<button class="btn btn-secondary btn-sm" style="margin-left:12px" data-close-poll="${poll.id}">Encerrar</button>` : ''}
+              ${isAdmin ? `<button class="btn btn-danger btn-sm" style="margin-left:8px" data-delete-poll="${poll.id}" data-delete-poll-title="${poll.question.replace(/"/g,'&quot;')}">🗑 Excluir</button>` : ''}
               </div>
             </div>`;
         }).join('')}
@@ -1733,6 +1755,8 @@ function bindApp(){
     document.getElementById('confirmDelete').onclick = ()=>{
       if(state.confirm.type==='feedback') deleteFeedback(state.confirm.id);
       else if(state.confirm.type==='announcement') deleteAnnouncement(state.confirm.id);
+      else if(state.confirm.type==='message') deleteMessage(state.confirm.id);
+      else if(state.confirm.type==='poll') deletePoll(state.confirm.id);
       else deleteUser(state.confirm.id);
     };
   }
@@ -1826,6 +1850,14 @@ function bindApp(){
     if(eomReason) eomReason.oninput = e=>{ state.eomForm.reason=e.target.value; };
     document.getElementById('submitEom').onclick = submitEom;
   }
+
+
+  document.querySelectorAll('[data-delete-msg]').forEach(el=>{
+    el.onclick = ()=>{ state.confirm = { type:'message', id:el.dataset.deleteMsg, name:el.dataset.deleteMsgTitle }; render(); };
+  });
+  document.querySelectorAll('[data-delete-poll]').forEach(el=>{
+    el.onclick = ()=>{ state.confirm = { type:'poll', id:el.dataset.deletePoll, name:el.dataset.deletePollTitle }; render(); };
+  });
 
   // Announcements
   const newAnnBtn = document.getElementById('newAnnBtn');
