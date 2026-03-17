@@ -2405,6 +2405,7 @@ function renderTimeClock(){
   const u = state.currentUser;
   const isAdmin = u.role==='admin' || u.role==='manager';
   const isLeader = u.role==='leader';
+  const canPunch = u.role==='employee' || u.role==='leader' || u.role==='manager';
   const r = state.todayRecord;
   const now = state.clockTime;
   const months = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -2433,7 +2434,7 @@ function renderTimeClock(){
     : [];
 
   return `
-    ${!isAdmin && !isLeader ? `
+    ${canPunch ? `
     <div class="punch-card">
       <div id="liveClock" class="punch-time">${now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</div>
       <div class="punch-date">${now.toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div>
@@ -2605,7 +2606,7 @@ function renderTimeClock(){
     <div class="section" style="margin-top:24px">
       <div class="section-header">
         <div class="section-title">📋 Justificativas de Falta</div>
-        ${!isAdmin && !isLeader ? `<button class="btn btn-primary" id="newAbsenceBtn">📋 Justificar Falta</button>` : ''}
+        ${canPunch ? `<button class="btn btn-primary" id="newAbsenceBtn">📋 Justificar Falta</button>` : ''}
       </div>
       ${(()=>{
         const myAbsences = isAdmin ? state.absences : state.absences.filter(a=>a.user_id===u.id);
