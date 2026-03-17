@@ -419,6 +419,19 @@ body{font-family:'DM Sans',sans-serif;background:#ede8dc;color:var(--ink);min-he
 .boh-positive{color:var(--positive)}
 .boh-negative{color:var(--constructive)}
 .boh-neutral{color:#11008d}
+
+/* EDIT TIME RECORD */
+.edit-record-form{background:var(--cream);border-radius:var(--radius);padding:20px;margin-top:12px}
+
+/* ABSENCES */
+.absence-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px;margin-bottom:12px;box-shadow:var(--shadow);border-left:4px solid var(--border)}
+.absence-card.pending{border-left-color:#856404}
+.absence-card.approved{border-left-color:var(--positive)}
+.absence-card.rejected{border-left-color:var(--constructive)}
+.absence-status{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase}
+.absence-pending{background:#fff3cd;color:#856404}
+.absence-approved{background:var(--positive-bg);color:var(--positive)}
+.absence-rejected{background:var(--constructive-bg);color:var(--constructive)}
 </style>
 </head>
 <body>
@@ -495,6 +508,14 @@ let state = {
   clockTime: new Date(),
   timeViewMonth: new Date().getMonth(),
   timeViewYear: new Date().getFullYear(),
+  showEditTimeModal: false,
+  editTimeForm: { id:'', user_name:'', date:'', entry_time:'', lunch_out:'', lunch_in:'', exit_time:'' },
+  allUsersTimeRecords: [],
+  absences: [],
+  showAbsenceModal: false,
+  absenceForm: { date:'', reason:'', file: null },
+  showReviewModal: false,
+  reviewForm: { id:'', user_name:'', date:'', reason:'', attachment_url:'', admin_note:'' },
   events: [],
   showEventModal: false,
   eventForm: { title:'', description:'', event_date:'', event_time:'', color:'accent' },
@@ -578,6 +599,8 @@ async function loadData(){
   const { data: timeRecs } = await sb.from('time_records').select('*').eq('user_id', state.currentUser.id).order('date', { ascending: false }).limit(60);
   state.timeRecords = timeRecs || [];
   state.todayRecord = state.timeRecords.find(r=>r.date===todayStr2) || null;
+  const { data: absencesData } = await sb.from('absences').select('*').order('date', { ascending: false });
+  state.absences = absencesData || [];
   // Start event reminder checker
   startEventReminders();
   // Start clock
@@ -1020,6 +1043,19 @@ function exportTimePDF(){
 .boh-positive{color:var(--positive)}
 .boh-negative{color:var(--constructive)}
 .boh-neutral{color:#11008d}
+
+/* EDIT TIME RECORD */
+.edit-record-form{background:var(--cream);border-radius:var(--radius);padding:20px;margin-top:12px}
+
+/* ABSENCES */
+.absence-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px;margin-bottom:12px;box-shadow:var(--shadow);border-left:4px solid var(--border)}
+.absence-card.pending{border-left-color:#856404}
+.absence-card.approved{border-left-color:var(--positive)}
+.absence-card.rejected{border-left-color:var(--constructive)}
+.absence-status{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase}
+.absence-pending{background:#fff3cd;color:#856404}
+.absence-approved{background:var(--positive-bg);color:var(--positive)}
+.absence-rejected{background:var(--constructive-bg);color:var(--constructive)}
 </style></head><body>
   <h1>SP Traduções · Relatório de Ponto</h1>
   <h2>${u.name} · ${months[m]} ${y}</h2>
@@ -1049,6 +1085,114 @@ function exportTimePDF(){
   win.document.write(html2);
   win.document.close();
   setTimeout(()=>win.print(), 500);
+}
+
+
+async function loadAllTimeRecords(){
+  const m = state.timeViewMonth;
+  const y = state.timeViewYear;
+  const firstDay = new Date(y, m, 1).toISOString().slice(0,10);
+  const lastDay = new Date(y, m+1, 0).toISOString().slice(0,10);
+  const { data } = await sb.from('time_records').select('*').gte('date', firstDay).lte('date', lastDay).order('date', { ascending: false });
+  state.allUsersTimeRecords = data || [];
+  render();
+}
+
+
+async function submitAbsence(){
+  const f = state.absenceForm;
+  if(!f.date || !f.reason) return;
+  let attachmentUrl = null;
+  if(f.file){
+    const ext = f.file.name.split('.').pop();
+    const path = state.currentUser.id + '_' + f.date + '.' + ext;
+    const { error: upErr } = await sb.storage.from('avatars').upload('absences/'+path, f.file, { upsert: true });
+    if(!upErr) attachmentUrl = 'https://jdopriegkcfwiljcifyl.supabase.co/storage/v1/object/public/avatars/absences/'+path;
+  }
+  const { data, error } = await sb.from('absences').insert({
+    user_id: state.currentUser.id, date: f.date, reason: f.reason, attachment_url: attachmentUrl, status: 'pending'
+  }).select().single();
+  if(!error && data){
+    state.absences = [data, ...state.absences];
+    state.showAbsenceModal = false;
+    state.absenceForm = { date:'', reason:'', file: null };
+    const adminIds = state.users.filter(u=>u.role==='admin').map(u=>u.id);
+    createNotifForUsers(adminIds, '📋', state.currentUser.name+' enviou uma justificativa de falta para '+new Date(f.date+'T12:00:00').toLocaleDateString('pt-BR'), 'timeclock');
+    showToast('Justificativa enviada!');
+  }
+}
+
+async function reviewAbsence(id, status){
+  const f = state.reviewForm;
+  const { data, error } = await sb.from('absences').update({
+    status, admin_note: f.admin_note, reviewed_by: state.currentUser.id, reviewed_at: new Date().toISOString()
+  }).eq('id', id).select().single();
+  if(!error && data){
+    state.absences = state.absences.map(a=>a.id===id?data:a);
+    if(status==='approved'){
+      const existing = await sb.from('time_records').select('id').eq('user_id', data.user_id).eq('date', data.date).single();
+      if(!existing.data){
+        await sb.from('time_records').insert({
+          user_id: data.user_id, date: data.date,
+          entry_time: new Date(data.date+'T09:00:00').toISOString(),
+          lunch_out: new Date(data.date+'T12:00:00').toISOString(),
+          lunch_in: new Date(data.date+'T13:00:00').toISOString(),
+          exit_time: new Date(data.date+'T18:00:00').toISOString(),
+          total_hours: WORK_HOURS
+        });
+      }
+      createNotifForUsers([data.user_id], '✅', 'Sua justificativa de falta para '+new Date(data.date+'T12:00:00').toLocaleDateString('pt-BR')+' foi aprovada!', 'timeclock');
+    } else {
+      createNotifForUsers([data.user_id], '❌', 'Sua justificativa de falta para '+new Date(data.date+'T12:00:00').toLocaleDateString('pt-BR')+' foi negada.', 'timeclock');
+    }
+    state.showReviewModal = false;
+    state.reviewForm = { id:'', user_name:'', date:'', reason:'', attachment_url:'', admin_note:'' };
+    showToast(status==='approved'?'✅ Falta aprovada!':'❌ Falta negada.');
+  }
+}
+
+async function saveEditTimeRecord(){
+  const f = state.editTimeForm;
+  const toISO = (dateStr, timeStr) => {
+    if(!timeStr) return null;
+    return new Date(dateStr + 'T' + timeStr + ':00').toISOString();
+  };
+  const update = {
+    entry_time: toISO(f.date, f.entry_time),
+    lunch_out: toISO(f.date, f.lunch_out),
+    lunch_in: toISO(f.date, f.lunch_in),
+    exit_time: toISO(f.date, f.exit_time),
+  };
+  // Recalculate total hours
+  if(update.entry_time && update.exit_time){
+    const entry = new Date(update.entry_time);
+    const exit = new Date(update.exit_time);
+    const lunchOut = update.lunch_out ? new Date(update.lunch_out) : null;
+    const lunchIn = update.lunch_in ? new Date(update.lunch_in) : null;
+    let total = (exit - entry) / 3600000;
+    if(lunchOut && lunchIn) total -= (lunchIn - lunchOut) / 3600000;
+    else total -= LUNCH_HOURS;
+    update.total_hours = Math.max(0, Math.round(total * 100) / 100);
+  }
+  const { data, error } = await sb.from('time_records').update(update).eq('id', f.id).select().single();
+  if(!error && data){
+    state.timeRecords = state.timeRecords.map(r=>r.id===data.id?data:r);
+    state.allUsersTimeRecords = state.allUsersTimeRecords.map(r=>r.id===data.id?data:r);
+    if(state.todayRecord && state.todayRecord.id===data.id) state.todayRecord = data;
+    state.showEditTimeModal = false;
+    showToast('✦ Ponto corrigido com sucesso!');
+    render();
+  }
+}
+
+async function deleteTimeRecord(id){
+  const { error } = await sb.from('time_records').delete().eq('id', id);
+  if(!error){
+    state.timeRecords = state.timeRecords.filter(r=>r.id!==id);
+    state.allUsersTimeRecords = state.allUsersTimeRecords.filter(r=>r.id!==id);
+    state.confirm = null;
+    showToast('Registro excluído.');
+  }
 }
 
 async function submitBirthday(){
@@ -1378,6 +1522,19 @@ function exportPDF(){
 .boh-positive{color:var(--positive)}
 .boh-negative{color:var(--constructive)}
 .boh-neutral{color:#11008d}
+
+/* EDIT TIME RECORD */
+.edit-record-form{background:var(--cream);border-radius:var(--radius);padding:20px;margin-top:12px}
+
+/* ABSENCES */
+.absence-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px;margin-bottom:12px;box-shadow:var(--shadow);border-left:4px solid var(--border)}
+.absence-card.pending{border-left-color:#856404}
+.absence-card.approved{border-left-color:var(--positive)}
+.absence-card.rejected{border-left-color:var(--constructive)}
+.absence-status{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase}
+.absence-pending{background:#fff3cd;color:#856404}
+.absence-approved{background:var(--positive-bg);color:var(--positive)}
+.absence-rejected{background:var(--constructive-bg);color:var(--constructive)}
 </style></head><body>
   <h1>SP Traduções · Relatório de Feedback</h1>
   <p style="color:#7a7166">${monthName} · Gerado em ${now.toLocaleDateString('pt-BR')}</p>
@@ -1591,6 +1748,9 @@ function renderApp(){
     ${state.showPersonalEventModal ? renderPersonalEventModal() : ''}
     ${state.showBirthdayModal ? renderBirthdayModal() : ''}
     ${state.showPasswordModal ? renderPasswordModal() : ''}
+    ${state.showEditTimeModal ? renderEditTimeModal() : ''}
+    ${state.showAbsenceModal ? renderAbsenceModal() : ''}
+    ${state.showReviewModal ? renderReviewModal() : ''}
     ${state.confirm ? renderConfirm() : ''}
     ${state.toast ? `<div class="toast">${state.toast}</div>` : ''}
   </div>`;
@@ -2335,12 +2495,85 @@ function renderTimeClock(){
                 <td>${formatTime(rec.lunch_out)}</td>
                 <td>${formatTime(rec.lunch_in)}</td>
                 <td>${formatTime(rec.exit_time)}</td>
-                <td><span class="hours-badge ${h>=WORK_HOURS?'hours-ok':h>=6?'hours-partial':'hours-low'}">${h?h.toFixed(1)+'h':'—'}</span>${h?` <span style="font-size:11px;color:${h>=WORK_HOURS?'var(--positive)':'var(--constructive)'}">${formatBalance(h-WORK_HOURS)}</span>`:''}</td>
+                <td>
+                  <span class="hours-badge ${h>=WORK_HOURS?'hours-ok':h>=6?'hours-partial':'hours-low'}">${h?h.toFixed(1)+'h':'—'}</span>
+                  ${h?`<span style="font-size:11px;color:${h>=WORK_HOURS?'var(--positive)':'var(--constructive)'}">${formatBalance(h-WORK_HOURS)}</span>`:''}
+                  ${isAdmin?`
+                    <button class="btn btn-secondary btn-sm" style="margin-left:6px" data-edit-time="${rec.id}" data-edit-time-user="${u.name}" data-edit-time-date="${rec.date}" data-edit-entry="${formatTime(rec.entry_time).replace('—','')}" data-edit-lunch-out="${formatTime(rec.lunch_out).replace('—','')}" data-edit-lunch-in="${formatTime(rec.lunch_in).replace('—','')}" data-edit-exit="${formatTime(rec.exit_time).replace('—','')}">✏️</button>
+                    <button class="btn btn-danger btn-sm" data-delete-time="${rec.id}">🗑</button>`:''}
+                </td>
               </tr>`;
             }).join('')}
           </tbody>
         </table>
       </div>
+
+      ${isAdmin ? `
+      <div class="section" style="margin-top:32px">
+        <div class="section-header">
+          <div class="section-title">Registros de Todo o Time</div>
+          <button class="btn btn-secondary btn-sm" id="loadAllTimeBtn">🔄 Carregar Registros</button>
+        </div>
+        ${state.allUsersTimeRecords.length === 0 ? 
+          '<div style="font-size:13px;color:var(--muted);padding:20px;text-align:center">Clique em Carregar Registros para ver o ponto de todos.</div>' :
+          `<div class="time-table"><table>
+            <thead><tr><th>Colaborador</th><th>Data</th><th>Entrada</th><th>Saída Almoço</th><th>Retorno</th><th>Saída</th><th>Total</th><th></th></tr></thead>
+            <tbody>
+              ${state.allUsersTimeRecords.map(rec=>{
+                const usr = getUserById(rec.user_id);
+                const h = rec.total_hours || calcHours(rec);
+                const dt = new Date(rec.date+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+                const isLateR = rec.entry_time && (new Date(rec.entry_time).getHours()>WORK_START||(new Date(rec.entry_time).getHours()===WORK_START&&new Date(rec.entry_time).getMinutes()>5));
+                return `<tr>
+                  <td><div style="display:flex;align-items:center;gap:6px">
+                    ${usr?.avatar_url?`<img src="${usr.avatar_url}" style="width:24px;height:24px;border-radius:50%;object-fit:cover">`:
+                    `<div class="avatar" style="width:24px;height:24px;font-size:9px">${initials(usr?.name||'?')}</div>`}
+                    ${usr?.name||'?'}
+                  </div></td>
+                  <td>${dt} ${isLateR?'<span class="late-badge">Atraso</span>':''}</td>
+                  <td>${formatTime(rec.entry_time)}</td>
+                  <td>${formatTime(rec.lunch_out)}</td>
+                  <td>${formatTime(rec.lunch_in)}</td>
+                  <td>${formatTime(rec.exit_time)}</td>
+                  <td><span class="hours-badge ${h>=WORK_HOURS?'hours-ok':h>=6?'hours-partial':'hours-low'}">${h?h.toFixed(1)+'h':'—'}</span></td>
+                  <td style="display:flex;gap:4px">
+                    <button class="btn btn-secondary btn-sm" data-edit-time="${rec.id}" data-edit-time-user="${usr?.name||'?'}" data-edit-time-date="${rec.date}" data-edit-entry="${formatTime(rec.entry_time).replace('—','')}" data-edit-lunch-out="${formatTime(rec.lunch_out).replace('—','')}" data-edit-lunch-in="${formatTime(rec.lunch_in).replace('—','')}" data-edit-exit="${formatTime(rec.exit_time).replace('—','')}">✏️</button>
+                    <button class="btn btn-danger btn-sm" data-delete-time="${rec.id}">🗑</button>
+                  </td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table></div>`}
+      </div>` : ''}
+
+    <div class="section" style="margin-top:24px">
+      <div class="section-header">
+        <div class="section-title">📋 Justificativas de Falta</div>
+        ${!isAdmin && !isLeader ? `<button class="btn btn-primary" id="newAbsenceBtn">📋 Justificar Falta</button>` : ''}
+      </div>
+      ${(()=>{
+        const myAbsences = isAdmin ? state.absences : state.absences.filter(a=>a.user_id===u.id);
+        const pending = myAbsences.filter(a=>a.status==='pending').length;
+        if(myAbsences.length===0) return `<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-title">Nenhuma justificativa</div><div class="empty-text">${isAdmin?'Nenhuma justificativa pendente.':'Use este espaço para justificar faltas.'}</div></div>`;
+        return (isAdmin && pending>0 ? `<div style="background:#fff3cd;padding:12px 16px;border-radius:var(--radius-sm);margin-bottom:16px;font-size:13px;font-weight:600;color:#856404">⚠️ ${pending} justificativa${pending!==1?'s':''} aguardando análise</div>` : '') +
+        myAbsences.map(a=>{
+          const absUser = getUserById(a.user_id);
+          return `<div class="absence-card ${a.status}">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+              <div>
+                ${isAdmin ? `<div style="font-size:13px;font-weight:600">${absUser?absUser.name:'?'}</div>` : ''}
+                <div style="font-size:12px;color:var(--muted)">${new Date(a.date+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div>
+              </div>
+              <span class="absence-status absence-${a.status}">${a.status==='pending'?'⏳ Pendente':a.status==='approved'?'✅ Aprovada':'❌ Negada'}</span>
+            </div>
+            <div style="font-size:13px;color:var(--ink);margin-bottom:10px">${a.reason}</div>
+            ${a.attachment_url ? `<a href="${a.attachment_url}" target="_blank" class="btn btn-secondary btn-sm" style="margin-bottom:10px">📎 Ver Documento</a>` : ''}
+            ${a.admin_note ? `<div style="font-size:12px;color:var(--muted);background:var(--cream);padding:8px 12px;border-radius:var(--radius-sm);margin-bottom:10px"><strong>Admin:</strong> ${a.admin_note}</div>` : ''}
+            ${isAdmin && a.status==='pending' ? `<button class="btn btn-primary btn-sm" data-review-absence="${a.id}" data-review-user="${absUser?absUser.name:'?'}" data-review-date="${a.date}" data-review-reason="${a.reason.replace(/"/g,'&quot;')}" data-review-attachment="${a.attachment_url||''}">🔍 Analisar</button>` : ''}
+          </div>`;
+        }).join('');
+      })()}
+    </div>
     </div>`;
 }
 
@@ -2482,6 +2715,123 @@ function renderBirthdayModal(){
   </div>`;
 }
 
+
+
+
+function renderAbsenceModal(){
+  const f = state.absenceForm;
+  return `
+  <div class="modal-overlay" id="absenceModalOverlay">
+    <div class="modal" style="max-width:480px">
+      <div class="modal-header">
+        <div class="modal-title">📋 Justificar Falta</div>
+        <button class="modal-close" id="closeAbsenceModal">×</button>
+      </div>
+      <div class="modal-body">
+        <div style="font-size:12px;color:var(--muted);background:var(--cream);padding:10px 14px;border-radius:var(--radius-sm);margin-bottom:16px">
+          Preencha a data da falta e o motivo. Anexe um atestado se houver. Sua justificativa será analisada pelo administrador.
+        </div>
+        <div class="form-group">
+          <label class="form-label">Data da Falta</label>
+          <input class="form-input" id="absenceDate" type="date" value="${f.date}" max="${new Date().toISOString().slice(0,10)}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Motivo / Justificativa</label>
+          <textarea class="form-textarea" id="absenceReason" placeholder="Descreva o motivo da sua falta..." style="min-height:120px">${f.reason}</textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Atestado ou Documento (opcional)</label>
+          <input class="form-input" id="absenceFile" type="file" accept=".pdf,.jpg,.jpeg,.png" style="padding:8px">
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">Formatos aceitos: PDF, JPG, PNG</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancelAbsenceModal">Cancelar</button>
+        <button class="btn btn-primary" id="submitAbsenceBtn" ${!f.date||!f.reason?'disabled':''}>Enviar Justificativa →</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderReviewModal(){
+  const f = state.reviewForm;
+  return `
+  <div class="modal-overlay" id="reviewModalOverlay">
+    <div class="modal" style="max-width:500px">
+      <div class="modal-header">
+        <div class="modal-title">🔍 Analisar Justificativa</div>
+        <button class="modal-close" id="closeReviewModal">×</button>
+      </div>
+      <div class="modal-body">
+        <div style="background:var(--cream);padding:14px;border-radius:var(--radius-sm);margin-bottom:16px">
+          <div style="font-size:13px;font-weight:600">${f.user_name}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">Falta em: ${new Date(f.date+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'})}</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Motivo do Colaborador</label>
+          <div style="padding:12px;background:var(--white);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;line-height:1.6">${f.reason}</div>
+        </div>
+        ${f.attachment_url ? `<div class="form-group"><label class="form-label">Documento Anexado</label><a href="${f.attachment_url}" target="_blank" class="btn btn-secondary btn-sm">📎 Ver Documento</a></div>` : '<div style="font-size:12px;color:var(--muted);margin-bottom:16px">Nenhum documento anexado.</div>'}
+        <div class="form-group">
+          <label class="form-label">Observação (opcional)</label>
+          <textarea class="form-textarea" id="adminNote" placeholder="Adicione uma observação para o colaborador..." style="min-height:80px">${f.admin_note}</textarea>
+        </div>
+        <div style="font-size:12px;background:#d8f3dc;padding:10px 14px;border-radius:var(--radius-sm);color:#2d6a4f">✅ Aprovar = ponto registrado automaticamente como dia completo.</div>
+        <div style="font-size:12px;background:#fde8e3;padding:10px 14px;border-radius:var(--radius-sm);color:#c44b2b;margin-top:8px">❌ Negar = falta computada normalmente.</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancelReviewModal">Cancelar</button>
+        <button class="btn btn-danger" id="rejectAbsenceBtn">❌ Negar</button>
+        <button class="btn btn-primary" style="background:var(--positive)" id="approveAbsenceBtn">✅ Aprovar</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderEditTimeModal(){
+  const f = state.editTimeForm;
+  return `
+  <div class="modal-overlay" id="editTimeModalOverlay">
+    <div class="modal" style="max-width:480px">
+      <div class="modal-header">
+        <div class="modal-title">✏️ Corrigir Ponto</div>
+        <button class="modal-close" id="closeEditTimeModal">×</button>
+      </div>
+      <div class="modal-body">
+        <div style="background:var(--cream);padding:12px;border-radius:var(--radius-sm);margin-bottom:16px;font-size:13px">
+          <strong>${f.user_name}</strong> · ${new Date(f.date+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'})}
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">🟢 Entrada</label>
+            <input class="form-input" id="editEntry" type="time" value="${f.entry_time}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">🍽️ Saída Almoço</label>
+            <input class="form-input" id="editLunchOut" type="time" value="${f.lunch_out}">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">🔄 Retorno Almoço</label>
+            <input class="form-input" id="editLunchIn" type="time" value="${f.lunch_in}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">🔴 Saída</label>
+            <input class="form-input" id="editExit" type="time" value="${f.exit_time}">
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--muted);padding:10px;background:#fde8e3;border-radius:var(--radius-sm)">
+          ⚠️ Apenas o administrador pode corrigir registros de ponto.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancelEditTimeModal">Cancelar</button>
+        <button class="btn btn-primary" id="submitEditTime">Salvar Correção →</button>
+      </div>
+    </div>
+  </div>`;
+}
 
 function renderPasswordModal(){
   const f = state.passwordForm;
@@ -2877,6 +3227,7 @@ function bindApp(){
       else if(state.confirm.type==='personal_event') deletePersonalEvent(state.confirm.id);
       else if(state.confirm.type==='evaluation') deleteEvaluation(state.confirm.id);
       else if(state.confirm.type==='eom') deleteEom(state.confirm.id);
+      else if(state.confirm.type==='time_record') deleteTimeRecord(state.confirm.id);
       else deleteUser(state.confirm.id);
     };
   }
@@ -2940,6 +3291,81 @@ function bindApp(){
 
 
 
+
+
+
+  // Absences
+  const newAbsenceBtn = document.getElementById('newAbsenceBtn');
+  if(newAbsenceBtn) newAbsenceBtn.onclick = ()=>{ state.showAbsenceModal=true; render(); };
+
+  document.querySelectorAll('[data-review-absence]').forEach(el=>{
+    el.onclick = ()=>{
+      state.reviewForm = { id:el.dataset.reviewAbsence, user_name:el.dataset.reviewUser, date:el.dataset.reviewDate, reason:el.dataset.reviewReason, attachment_url:el.dataset.reviewAttachment, admin_note:'' };
+      state.showReviewModal = true; render();
+    };
+  });
+
+  if(state.showAbsenceModal){
+    document.getElementById('closeAbsenceModal').onclick = ()=>{ state.showAbsenceModal=false; render(); };
+    document.getElementById('cancelAbsenceModal').onclick = ()=>{ state.showAbsenceModal=false; render(); };
+    document.getElementById('absenceModalOverlay').onclick = e=>{ if(e.target.id==='absenceModalOverlay'){ state.showAbsenceModal=false; render(); }};
+    const absDate = document.getElementById('absenceDate');
+    if(absDate) absDate.onchange = e=>{ state.absenceForm.date=e.target.value; document.getElementById('submitAbsenceBtn').disabled=!state.absenceForm.date||!state.absenceForm.reason; };
+    const absReason = document.getElementById('absenceReason');
+    if(absReason) absReason.oninput = e=>{ state.absenceForm.reason=e.target.value; document.getElementById('submitAbsenceBtn').disabled=!state.absenceForm.date||!state.absenceForm.reason; };
+    const absFile = document.getElementById('absenceFile');
+    if(absFile) absFile.onchange = e=>{ state.absenceForm.file=e.target.files[0]||null; };
+    document.getElementById('submitAbsenceBtn').onclick = submitAbsence;
+  }
+
+  if(state.showReviewModal){
+    document.getElementById('closeReviewModal').onclick = ()=>{ state.showReviewModal=false; render(); };
+    document.getElementById('cancelReviewModal').onclick = ()=>{ state.showReviewModal=false; render(); };
+    document.getElementById('reviewModalOverlay').onclick = e=>{ if(e.target.id==='reviewModalOverlay'){ state.showReviewModal=false; render(); }};
+    const adminNote = document.getElementById('adminNote');
+    if(adminNote) adminNote.oninput = e=>state.reviewForm.admin_note=e.target.value;
+    document.getElementById('approveAbsenceBtn').onclick = ()=>reviewAbsence(state.reviewForm.id, 'approved');
+    document.getElementById('rejectAbsenceBtn').onclick = ()=>reviewAbsence(state.reviewForm.id, 'rejected');
+  }
+
+  // Edit time records (admin)
+  document.querySelectorAll('[data-edit-time]').forEach(el=>{
+    el.onclick = ()=>{
+      state.editTimeForm = {
+        id: el.dataset.editTime,
+        user_name: el.dataset.editTimeUser,
+        date: el.dataset.editTimeDate,
+        entry_time: el.dataset.editEntry,
+        lunch_out: el.dataset.editLunchOut,
+        lunch_in: el.dataset.editLunchIn,
+        exit_time: el.dataset.editExit
+      };
+      state.showEditTimeModal = true;
+      render();
+    };
+  });
+
+  document.querySelectorAll('[data-delete-time]').forEach(el=>{
+    el.onclick = ()=>{ state.confirm = { type:'time_record', id:el.dataset.deleteTime, name:'este registro de ponto' }; render(); };
+  });
+
+  const loadAllTimeBtn = document.getElementById('loadAllTimeBtn');
+  if(loadAllTimeBtn) loadAllTimeBtn.onclick = loadAllTimeRecords;
+
+  if(state.showEditTimeModal){
+    document.getElementById('closeEditTimeModal').onclick = ()=>{ state.showEditTimeModal=false; render(); };
+    document.getElementById('cancelEditTimeModal').onclick = ()=>{ state.showEditTimeModal=false; render(); };
+    document.getElementById('editTimeModalOverlay').onclick = e=>{ if(e.target.id==='editTimeModalOverlay'){ state.showEditTimeModal=false; render(); }};
+    const ee = document.getElementById('editEntry');
+    if(ee) ee.onchange = e=>state.editTimeForm.entry_time=e.target.value;
+    const elo = document.getElementById('editLunchOut');
+    if(elo) elo.onchange = e=>state.editTimeForm.lunch_out=e.target.value;
+    const eli = document.getElementById('editLunchIn');
+    if(eli) eli.onchange = e=>state.editTimeForm.lunch_in=e.target.value;
+    const eex = document.getElementById('editExit');
+    if(eex) eex.onchange = e=>state.editTimeForm.exit_time=e.target.value;
+    document.getElementById('submitEditTime').onclick = saveEditTimeRecord;
+  }
 
   // Time clock
   const punchEntry = document.getElementById('punchEntry');
