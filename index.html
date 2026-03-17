@@ -207,6 +207,7 @@ body{font-family:'DM Sans',sans-serif;background:#ede8dc;color:var(--ink);min-he
 .role-pill{display:inline-block;padding:3px 10px;border-radius:2px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
 .role-admin{background:var(--ink);color:var(--paper)}
 .role-leader{background:var(--accent);color:white}
+.role-manager{background:#11008d;color:white}
 .role-employee{background:var(--sand);color:var(--ink)}
 
 /* LOADER */
@@ -541,14 +542,14 @@ function today(){ return new Date().toLocaleDateString('pt-BR',{weekday:'long',d
 // Access control helpers
 function getMyTeamMembers(){
   const u = state.currentUser;
-  if(u.role === 'admin') return state.users.filter(x => x.role === 'employee');
+  if(u.role === 'admin' || u.role === 'manager') return state.users.filter(x => x.role === 'employee');
   if(u.role === 'leader') return state.users.filter(x => x.role === 'employee' && x.department === u.department);
   return [];
 }
 
 function getVisibleFeedbacks(){
   const u = state.currentUser;
-  if(u.role === 'admin') return state.feedbacks;
+  if(u.role === 'admin' || u.role === 'manager') return state.feedbacks;
   if(u.role === 'leader'){
     const myTeamIds = getMyTeamMembers().map(x => x.id);
     return state.feedbacks.filter(f => myTeamIds.includes(f.to_id));
@@ -559,6 +560,7 @@ function getVisibleFeedbacks(){
 function canGiveFeedbackTo(targetUser){
   const u = state.currentUser;
   if(u.role === 'admin') return true;
+  if(u.role === 'manager') return targetUser.role === 'employee' || targetUser.role === 'leader';
   if(u.role === 'leader') return targetUser.role === 'employee' && targetUser.department === u.department;
   return false;
 }
@@ -600,18 +602,17 @@ async function loadData(){
   let timeQuery = sb.from('time_records').select('*').order('date', { ascending: false });
   if(state.currentUser.role === 'employee'){
     timeQuery = timeQuery.eq('user_id', state.currentUser.id).limit(60);
+  } else if(state.currentUser.role === 'admin' || state.currentUser.role === 'manager'){
+    timeQuery = timeQuery.limit(500);
   } else if(state.currentUser.role === 'leader'){
     // Leader sees their team
     const teamIds = (state.users||[]).filter(u=>u.role==='employee'&&u.department===state.currentUser.department).map(u=>u.id);
     teamIds.push(state.currentUser.id);
     timeQuery = timeQuery.in('user_id', teamIds).limit(200);
-  } else {
-    // Admin sees all
-    timeQuery = timeQuery.limit(500);
   }
   const { data: timeRecs } = await timeQuery;
   state.timeRecords = timeRecs || [];
-  state.allUsersTimeRecords = state.currentUser.role !== 'employee' ? (timeRecs || []) : [];
+  state.allUsersTimeRecords = (state.currentUser.role==='admin'||state.currentUser.role==='manager') ? (timeRecs || []) : [];
   state.todayRecord = state.timeRecords.find(r=>r.date===todayStr2 && r.user_id===state.currentUser.id) || null;
   const { data: absencesData } = await sb.from('absences').select('*').order('date', { ascending: false });
   state.absences = absencesData || [];
@@ -1653,7 +1654,7 @@ function bindLogin(){
 
 function renderApp(){
   const u = state.currentUser;
-  const canGive = u.role === 'admin' || u.role === 'leader';
+  const canGive = u.role === 'admin' || u.role === 'manager' || u.role === 'leader';
   const navItems = u.role === 'employee'
     ? [
         {id:'dashboard',label:'Meus Feedbacks',icon:'my'},
@@ -1662,6 +1663,19 @@ function renderApp(){
         {id:'calendar',label:'Calendário',icon:'cal'},
         {id:'announcements',label:'Quadro de Avisos',icon:'ann'},
         {id:'polls',label:'Enquetes',icon:'poll'},
+        {id:'eom',label:'Destaque do Mês',icon:'star'},
+        {id:'profile',label:'Meu Perfil',icon:'usr'}
+      ]
+    : u.role === 'manager' ? [
+        {id:'dashboard',label:'Visão Geral',icon:'dash'},
+        {id:'all',label:'Feedbacks',icon:'fb'},
+        {id:'people',label:'Todos os Times',icon:'ppl'},
+        {id:'users',label:'Usuários',icon:'usr'},
+        {id:'timeclock',label:'Ponto Eletrônico',icon:'clock'},
+        {id:'calendar',label:'Calendário',icon:'cal'},
+        {id:'announcements',label:'Quadro de Avisos',icon:'ann'},
+        {id:'polls',label:'Enquetes',icon:'poll'},
+        {id:'evals',label:'Avaliações',icon:'eval'},
         {id:'eom',label:'Destaque do Mês',icon:'star'},
         {id:'profile',label:'Meu Perfil',icon:'usr'}
       ]
@@ -1680,8 +1694,8 @@ function renderApp(){
         {id:'eom',label:'Destaque do Mês',icon:'star'}
       ];
 
-  const roleLabel = u.role==='admin' ? 'Admin' : u.role==='leader' ? 'Líder' : 'Colaborador';
-  const viewTitles = {dashboard: u.role==='employee' ? 'Meus Feedbacks' : 'Visão Geral', all:'Feedbacks', people: u.role==='admin' ? 'Todos os Times' : 'Meu Time', users:'Gerenciar Usuários', messages:'Mensagens', profile:'Meu Perfil', timeclock:'Ponto Eletrônico', calendar:'Calendário', announcements:'Quadro de Avisos', polls:'Enquetes', evals:'Avaliações', eom:'Destaque do Mês'};
+  const roleLabel = u.role==='admin' ? 'Admin' : u.role==='manager' ? 'Gestor Administrativo' : u.role==='leader' ? 'Líder' : 'Colaborador';
+  const viewTitles = {dashboard: u.role==='employee' ? 'Meus Feedbacks' : 'Visão Geral', all:'Feedbacks', people: (u.role==='admin'||u.role==='manager') ? 'Todos os Times' : 'Meu Time', users:'Gerenciar Usuários', messages:'Mensagens', profile:'Meu Perfil', timeclock:'Ponto Eletrônico', calendar:'Calendário', announcements:'Quadro de Avisos', polls:'Enquetes', evals:'Avaliações', eom:'Destaque do Mês'};
 
   return `
   <div class="app">
@@ -1740,14 +1754,14 @@ function renderApp(){
           </div>
           ${canGive ? `<button class="btn btn-primary" id="newFbBtn">${svgIcon('add')} Novo Feedback</button>` : ''}
           ${state.view==='messages' && u.role!=='admin' ? `<button class="btn btn-primary" id="newMsgBtn">${svgIcon('add')} Nova Mensagem</button>` : ''}
-          ${u.role==='admin' && state.view==='announcements' ? `<button class="btn btn-primary" id="newAnnBtn">${svgIcon('add')} Novo Aviso</button>` : ''}
+          ${(u.role==='admin'||u.role==='manager') && state.view==='announcements' ? `<button class="btn btn-primary" id="newAnnBtn">${svgIcon('add')} Novo Aviso</button>` : ''}
           ${(u.role==='admin'||u.role==='leader') && state.view==='timeclock' ? `<button class="btn btn-secondary" id="exportTimeBtn">📄 Exportar PDF</button>` : ''}
           ${u.role==='admin' && state.view==='calendar' ? `<button class="btn btn-primary" id="newEventBtn">${svgIcon('add')} Novo Evento</button>` : ''}
-          ${u.role==='admin' && state.view==='polls' ? `<button class="btn btn-primary" id="newPollBtn">${svgIcon('add')} Nova Enquete</button>` : ''}
+          ${(u.role==='admin'||u.role==='manager') && state.view==='polls' ? `<button class="btn btn-primary" id="newPollBtn">${svgIcon('add')} Nova Enquete</button>` : ''}
           ${(u.role==='admin'||u.role==='leader') && state.view==='evals' ? `<button class="btn btn-primary" id="newEvalBtn">${svgIcon('add')} Nova Avaliação</button>` : ''}
-          ${u.role==='admin' && state.view==='eom' ? `<button class="btn btn-primary" id="newEomBtn">🏆 Definir Destaque</button>` : ''}
-          ${u.role==='admin' && state.view==='dashboard' ? `<button class="btn btn-secondary" id="exportPdfBtn">📄 Exportar PDF</button>` : ''}
-          ${u.role==='admin' ? `<button class="btn btn-secondary" id="newUserBtn">${svgIcon('add')} Novo Usuário</button>` : ''}
+          ${(u.role==='admin'||u.role==='manager') && state.view==='eom' ? `<button class="btn btn-primary" id="newEomBtn">🏆 Definir Destaque</button>` : ''}
+          ${(u.role==='admin'||u.role==='manager') && state.view==='dashboard' ? `<button class="btn btn-secondary" id="exportPdfBtn">📄 Exportar PDF</button>` : ''}
+          ${(u.role==='admin'||u.role==='manager') ? `<button class="btn btn-secondary" id="newUserBtn">${svgIcon('add')} Novo Usuário</button>` : ''}
         </div>
       </div>
       <div class="content">${renderView()}</div>
@@ -1916,8 +1930,8 @@ function renderPeople(){
   const u = state.currentUser;
   const members = getMyTeamMembers();
 
-  if(u.role === 'admin'){
-    // Admin sees all teams grouped
+  if(u.role === 'admin' || u.role === 'manager'){
+    // Admin/Manager sees all teams grouped
     return TEAMS.map(team => {
       const teamMembers = state.users.filter(x => x.role === 'employee' && x.department === team);
       const teamLeader = state.users.find(x => x.role === 'leader' && x.department === team);
@@ -1992,12 +2006,12 @@ function renderUsers(){
                   <div class="avatar">${initials(u.name)}</div>${u.name}
                 </div></td>
                 <td>${u.email}</td>
-                <td><span class="role-pill role-${u.role}">${u.role==='admin'?'Admin':u.role==='leader'?'Líder':'Colaborador'}</span></td>
+                <td><span class="role-pill role-${u.role}">${u.role==='admin'?'Admin':u.role==='manager'?'Gestor':u.role==='leader'?'Líder':'Colaborador'}</span></td>
                 <td>${u.department ? `<span class="team-badge">${u.department}</span>` : '—'}</td>
                 <td>${u.birthday ? new Date(u.birthday+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : '—'}</td>
                 <td style="display:flex;gap:6px;align-items:center">
                   <button class="btn btn-secondary btn-sm" data-edit-birthday="${u.id}" data-edit-birthday-name="${u.name}" data-edit-birthday-val="${u.birthday||''}">🎂</button>
-                  ${u.id!==state.currentUser.id ? `<button class="btn btn-danger btn-sm" data-delete-user="${u.id}" data-delete-user-name="${u.name}">🗑</button>` : ''}
+                  ${u.id!==state.currentUser.id && (state.currentUser.role==='admin'||state.currentUser.role==='manager') ? `<button class="btn btn-danger btn-sm" data-delete-user="${u.id}" data-delete-user-name="${u.name}">🗑</button>` : ''}
                 </td>
               </tr>`).join('')}
           </tbody>
@@ -2150,6 +2164,7 @@ function renderUserModal(){
             <select class="form-select" id="uRole">
               <option value="employee" ${u.role==='employee'?'selected':''}>Colaborador</option>
               <option value="leader" ${u.role==='leader'?'selected':''}>Líder</option>
+              <option value="manager" ${u.role==='manager'?'selected':''}>Gestor Administrativo</option>
               <option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>
             </select>
           </div>
@@ -2366,7 +2381,7 @@ function renderProfile(){
 
 function renderTimeClock(){
   const u = state.currentUser;
-  const isAdmin = u.role==='admin';
+  const isAdmin = u.role==='admin' || u.role==='manager';
   const isLeader = u.role==='leader';
   const r = state.todayRecord;
   const now = state.clockTime;
