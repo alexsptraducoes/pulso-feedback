@@ -501,6 +501,8 @@ let state = {
   eomForm: { userId:'', reason:'' },
   showBirthdayModal: false,
   birthdayForm: { userId:'', name:'', birthday:'' },
+  showEditUserModal: false,
+  editUserForm: { id:'', name:'', email:'', role:'', department:'', password:'' },
   showPasswordModal: false,
   passwordForm: { current:'', new1:'', new2:'' },
   passwordError: '',
@@ -1210,6 +1212,24 @@ async function deleteTimeRecord(id){
   }
 }
 
+
+async function submitEditUser(){
+  const f = state.editUserForm;
+  if(!f.name || !f.email || !f.role) return;
+  const update = { name: f.name, email: f.email, role: f.role, department: f.department };
+  if(f.password) update.password = f.password;
+  const { data, error } = await sb.from('users').update(update).eq('id', f.id).select().single();
+  if(!error && data){
+    state.users = state.users.map(u => u.id===data.id ? data : u);
+    if(state.currentUser.id === data.id) state.currentUser = data;
+    state.showEditUserModal = false;
+    showToast('✦ Usuário atualizado com sucesso!');
+    render();
+  } else {
+    showToast('Erro ao atualizar usuário.');
+  }
+}
+
 async function submitBirthday(){
   const f = state.birthdayForm;
   if(!f.userId) return;
@@ -1776,6 +1796,7 @@ function renderApp(){
     ${state.showEventModal ? renderEventModal() : ''}
     ${state.showPersonalEventModal ? renderPersonalEventModal() : ''}
     ${state.showBirthdayModal ? renderBirthdayModal() : ''}
+    ${state.showEditUserModal ? renderEditUserModal() : ''}
     ${state.showPasswordModal ? renderPasswordModal() : ''}
     ${state.showEditTimeModal ? renderEditTimeModal() : ''}
     ${state.showAbsenceModal ? renderAbsenceModal() : ''}
@@ -2011,6 +2032,7 @@ function renderUsers(){
                 <td>${u.birthday ? new Date(u.birthday+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : '—'}</td>
                 <td style="display:flex;gap:6px;align-items:center">
                   <button class="btn btn-secondary btn-sm" data-edit-birthday="${u.id}" data-edit-birthday-name="${u.name}" data-edit-birthday-val="${u.birthday||''}">🎂</button>
+                  <button class="btn btn-secondary btn-sm" data-edit-user="${u.id}" data-edit-user-name="${u.name}" data-edit-user-email="${u.email}" data-edit-user-role="${u.role}" data-edit-user-dept="${u.department||''}">✏️</button>
                   ${u.id!==state.currentUser.id && (state.currentUser.role==='admin'||state.currentUser.role==='manager') ? `<button class="btn btn-danger btn-sm" data-delete-user="${u.id}" data-delete-user-name="${u.name}">🗑</button>` : ''}
                 </td>
               </tr>`).join('')}
@@ -2721,6 +2743,58 @@ function renderCalendar(){
     </div>`;
 }
 
+
+
+function renderEditUserModal(){
+  const f = state.editUserForm;
+  return `
+  <div class="modal-overlay" id="editUserModalOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">✏️ Editar Usuário</div>
+        <button class="modal-close" id="closeEditUserModal">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Nome completo</label>
+            <input class="form-input" id="editUName" value="${f.name}" placeholder="Nome Sobrenome">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Time / Departamento</label>
+            <select class="form-select" id="editUDept">
+              <option value="">Selecione o time...</option>
+              ${TEAMS.map(t=>`<option value="${t}" ${f.department===t?'selected':''}>${t}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">E-mail</label>
+          <input class="form-input" id="editUEmail" type="email" value="${f.email}" placeholder="email@empresa.com">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Perfil</label>
+            <select class="form-select" id="editURole">
+              <option value="employee" ${f.role==='employee'?'selected':''}>Colaborador</option>
+              <option value="leader" ${f.role==='leader'?'selected':''}>Líder</option>
+              <option value="manager" ${f.role==='manager'?'selected':''}>Gestor Administrativo</option>
+              <option value="admin" ${f.role==='admin'?'selected':''}>Admin</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nova Senha (opcional)</label>
+            <input class="form-input" id="editUPass" type="text" placeholder="Deixe em branco para manter" value="${f.password}">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancelEditUserModal">Cancelar</button>
+        <button class="btn btn-primary" id="submitEditUser">Salvar →</button>
+      </div>
+    </div>
+  </div>`;
+}
 
 function renderBirthdayModal(){
   const f = state.birthdayForm;
@@ -3434,6 +3508,40 @@ function bindApp(){
     const np2 = document.getElementById('newPassword2');
     if(np2) np2.oninput = e=>{ state.passwordForm.new2=e.target.value; document.getElementById('submitPassword').disabled=!state.passwordForm.current||!state.passwordForm.new1||!state.passwordForm.new2; };
     document.getElementById('submitPassword').onclick = submitChangePassword;
+  }
+
+
+  // Edit user
+  document.querySelectorAll('[data-edit-user]').forEach(el=>{
+    el.onclick = ()=>{
+      state.editUserForm = {
+        id: el.dataset.editUser,
+        name: el.dataset.editUserName,
+        email: el.dataset.editUserEmail,
+        role: el.dataset.editUserRole,
+        department: el.dataset.editUserDept,
+        password: ''
+      };
+      state.showEditUserModal = true;
+      render();
+    };
+  });
+
+  if(state.showEditUserModal){
+    document.getElementById('closeEditUserModal').onclick = ()=>{ state.showEditUserModal=false; render(); };
+    document.getElementById('cancelEditUserModal').onclick = ()=>{ state.showEditUserModal=false; render(); };
+    document.getElementById('editUserModalOverlay').onclick = e=>{ if(e.target.id==='editUserModalOverlay'){ state.showEditUserModal=false; render(); }};
+    const euName = document.getElementById('editUName');
+    if(euName) euName.oninput = e=>state.editUserForm.name=e.target.value;
+    const euEmail = document.getElementById('editUEmail');
+    if(euEmail) euEmail.oninput = e=>state.editUserForm.email=e.target.value;
+    const euRole = document.getElementById('editURole');
+    if(euRole) euRole.onchange = e=>{ state.editUserForm.role=e.target.value; render(); };
+    const euDept = document.getElementById('editUDept');
+    if(euDept) euDept.onchange = e=>state.editUserForm.department=e.target.value;
+    const euPass = document.getElementById('editUPass');
+    if(euPass) euPass.oninput = e=>state.editUserForm.password=e.target.value;
+    document.getElementById('submitEditUser').onclick = submitEditUser;
   }
 
   // Birthday modal
