@@ -405,7 +405,7 @@ let state = {
   showUserModal: false,
   typeFilter: 'all',
   form: { toId:'', type:'positive', category:'Desempenho', title:'', content:'' },
-  userForm: { name:'', email:'', password:'', role:'employee', department:'' },
+  userForm: { name:'', email:'', password:'', role:'employee', department:'', birthday:'' },
   loginEmail: '',
   loginPassword: '',
   loginError: '',
@@ -426,6 +426,8 @@ let state = {
   employeeOfMonth: [],
   showEomModal: false,
   eomForm: { userId:'', reason:'' },
+  showBirthdayModal: false,
+  birthdayForm: { userId:'', name:'', birthday:'' },
   events: [],
   showEventModal: false,
   eventForm: { title:'', description:'', event_date:'', event_time:'', color:'accent' },
@@ -572,7 +574,7 @@ async function submitUser(){
   const u = state.userForm;
   if(!u.name || !u.email || !u.password || !u.role) return;
   const { data, error } = await sb.from('users').insert({
-    name:u.name, email:u.email, password:u.password, role:u.role, department:u.department, avatar:initials(u.name), avatar_url:null
+    name:u.name, email:u.email, password:u.password, role:u.role, department:u.department, avatar:initials(u.name), avatar_url:null, birthday:u.birthday||null
   }).select().single();
   if(!error && data){
     state.users = [...state.users, data].sort((a,b)=>a.name.localeCompare(b.name));
@@ -745,6 +747,18 @@ function startEventReminders(){
 }
 
 // ── Personal Events ──────────────────────────────────────────────────────────
+
+async function submitBirthday(){
+  const f = state.birthdayForm;
+  if(!f.userId) return;
+  const { error } = await sb.from('users').update({ birthday: f.birthday||null }).eq('id', f.userId);
+  if(!error){
+    state.users = state.users.map(u => u.id===f.userId ? {...u, birthday: f.birthday||null} : u);
+    state.showBirthdayModal = false;
+    showToast('🎂 Aniversário atualizado!');
+  }
+}
+
 async function submitPersonalEvent(){
   const f = state.personalEventForm;
   if(!f.title || !f.event_date) return;
@@ -1232,6 +1246,7 @@ function renderApp(){
     ${state.showEomModal ? renderEomModal() : ''}
     ${state.showEventModal ? renderEventModal() : ''}
     ${state.showPersonalEventModal ? renderPersonalEventModal() : ''}
+    ${state.showBirthdayModal ? renderBirthdayModal() : ''}
     ${state.confirm ? renderConfirm() : ''}
     ${state.toast ? `<div class="toast">${state.toast}</div>` : ''}
   </div>`;
@@ -1448,7 +1463,7 @@ function renderUsers(){
       <div class="users-table">
         <table>
           <thead><tr>
-            <th>Nome</th><th>E-mail</th><th>Perfil</th><th>Time / Departamento</th><th></th>
+            <th>Nome</th><th>E-mail</th><th>Perfil</th><th>Time / Departamento</th><th>Aniversário</th><th></th>
           </tr></thead>
           <tbody>
             ${allUsers.map(u=>`
@@ -1459,7 +1474,11 @@ function renderUsers(){
                 <td>${u.email}</td>
                 <td><span class="role-pill role-${u.role}">${u.role==='admin'?'Admin':u.role==='leader'?'Líder':'Colaborador'}</span></td>
                 <td>${u.department ? `<span class="team-badge">${u.department}</span>` : '—'}</td>
-                <td>${u.id!==state.currentUser.id ? `<button class="btn btn-danger btn-sm" data-delete-user="${u.id}" data-delete-user-name="${u.name}">🗑 Excluir</button>` : ''}</td>
+                <td>${u.birthday ? new Date(u.birthday+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : '—'}</td>
+                <td style="display:flex;gap:6px;align-items:center">
+                  <button class="btn btn-secondary btn-sm" data-edit-birthday="${u.id}" data-edit-birthday-name="${u.name}" data-edit-birthday-val="${u.birthday||''}">🎂</button>
+                  ${u.id!==state.currentUser.id ? `<button class="btn btn-danger btn-sm" data-delete-user="${u.id}" data-delete-user-name="${u.name}">🗑</button>` : ''}
+                </td>
               </tr>`).join('')}
           </tbody>
         </table>
@@ -1596,6 +1615,10 @@ function renderUserModal(){
         <div class="form-group">
           <label class="form-label">E-mail</label>
           <input class="form-input" id="uEmail" type="email" placeholder="email@empresa.com" value="${u.email}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Data de Aniversário (opcional)</label>
+          <input class="form-input" id="uBirthday" type="date" value="${u.birthday||''}">
         </div>
         <div class="form-row">
           <div class="form-group">
@@ -1843,10 +1866,15 @@ function renderCalendar(){
     const isToday = dateStr===todayStr;
     const dayEvents = allCompany.filter(e=>e.event_date===dateStr);
     const dayPersonal = allPersonal.filter(e=>e.event_date===dateStr);
+    const dayBirthdays = state.users.filter(u=>{
+      if(!u.birthday) return false;
+      return u.birthday.slice(5,10) === dateStr.slice(5,10);
+    });
     cells += `<div class="cal-cell ${isToday?'today':''}">
       <div class="cal-date">${d}</div>
       ${dayEvents.map(e=>`<div class="cal-event-pill company" title="${e.title}">${e.title}</div>`).join('')}
       ${dayPersonal.map(e=>`<div class="cal-event-pill personal" title="${e.title}">🔒 ${e.title}</div>`).join('')}
+      ${dayBirthdays.map(u=>`<div class="cal-event-pill" style="background:#fff3cd;color:#856404" title="Aniversário de ${u.name}">🎂 ${u.name.split(' ')[0]}</div>`).join('')}
     </div>`;
   }
   const totalCells = Math.ceil((firstDay + daysInMonth) / 7) * 7;
@@ -1881,6 +1909,7 @@ function renderCalendar(){
     <div class="cal-legend">
       <div class="cal-legend-item"><div class="cal-legend-dot" style="background:#b5451b"></div> Eventos da empresa</div>
       <div class="cal-legend-item"><div class="cal-legend-dot" style="background:#6a3d9a"></div> Meus eventos pessoais</div>
+      <div class="cal-legend-item"><div class="cal-legend-dot" style="background:#856404"></div> Aniversários</div>
     </div>
     <div class="cal-wrap">
       <div class="cal-header">
@@ -1919,6 +1948,34 @@ function renderCalendar(){
         .sort((a,b)=>a.event_date.localeCompare(b.event_date))
         .map(e => renderEventItem(e, e._personal)).join('') || `<div class="empty-state"><div class="empty-icon">📅</div><div class="empty-title">Nenhum evento</div></div>`}
     </div>`;
+}
+
+
+function renderBirthdayModal(){
+  const f = state.birthdayForm;
+  return `
+  <div class="modal-overlay" id="birthdayModalOverlay">
+    <div class="modal" style="max-width:380px">
+      <div class="modal-header">
+        <div class="modal-title">🎂 Aniversário</div>
+        <button class="modal-close" id="closeBirthdayModal">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Colaborador</label>
+          <input class="form-input" value="${f.name}" disabled>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Data de Aniversário</label>
+          <input class="form-input" id="birthdayInput" type="date" value="${f.birthday}">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancelBirthdayModal">Cancelar</button>
+        <button class="btn btn-primary" id="submitBirthday">Salvar 🎂</button>
+      </div>
+    </div>
+  </div>`;
 }
 
 function renderPersonalEventModal(){
@@ -2346,6 +2403,25 @@ function bindApp(){
 
 
 
+
+  // Birthday modal
+  document.querySelectorAll('[data-edit-birthday]').forEach(el=>{
+    el.onclick = ()=>{
+      state.birthdayForm = { userId: el.dataset.editBirthday, name: el.dataset.editBirthdayName, birthday: el.dataset.editBirthdayVal };
+      state.showBirthdayModal = true;
+      render();
+    };
+  });
+
+  if(state.showBirthdayModal){
+    document.getElementById('closeBirthdayModal').onclick = ()=>{ state.showBirthdayModal=false; render(); };
+    document.getElementById('cancelBirthdayModal').onclick = ()=>{ state.showBirthdayModal=false; render(); };
+    document.getElementById('birthdayModalOverlay').onclick = e=>{ if(e.target.id==='birthdayModalOverlay'){ state.showBirthdayModal=false; render(); }};
+    const bdInput = document.getElementById('birthdayInput');
+    if(bdInput) bdInput.onchange = e=>{ state.birthdayForm.birthday=e.target.value; };
+    document.getElementById('submitBirthday').onclick = submitBirthday;
+  }
+
   // Personal events
   const newPersonalEventBtn = document.getElementById('newPersonalEventBtn');
   if(newPersonalEventBtn) newPersonalEventBtn.onclick = ()=>{ state.showPersonalEventModal=true; render(); };
@@ -2535,6 +2611,8 @@ function bindApp(){
     document.getElementById('uPass').oninput = e=>state.userForm.password=e.target.value;
     document.getElementById('uDept').onchange = e=>state.userForm.department=e.target.value;
     document.getElementById('uRole').onchange = e=>state.userForm.role=e.target.value;
+    const uBirthday = document.getElementById('uBirthday');
+    if(uBirthday) uBirthday.onchange = e=>state.userForm.birthday=e.target.value;
     document.getElementById('submitUser').onclick = submitUser;
   }
 }
