@@ -428,6 +428,9 @@ let state = {
   eomForm: { userId:'', reason:'' },
   showBirthdayModal: false,
   birthdayForm: { userId:'', name:'', birthday:'' },
+  showPasswordModal: false,
+  passwordForm: { current:'', new1:'', new2:'' },
+  passwordError: '',
   events: [],
   showEventModal: false,
   eventForm: { title:'', description:'', event_date:'', event_time:'', color:'accent' },
@@ -747,6 +750,31 @@ function startEventReminders(){
 }
 
 // ── Personal Events ──────────────────────────────────────────────────────────
+
+
+async function submitChangePassword(){
+  const f = state.passwordForm;
+  if(f.current !== state.currentUser.password){
+    state.passwordError = 'Senha atual incorreta.';
+    render(); return;
+  }
+  if(f.new1 !== f.new2){
+    state.passwordError = 'As senhas não coincidem.';
+    render(); return;
+  }
+  if(f.new1.length < 4){
+    state.passwordError = 'A nova senha deve ter pelo menos 4 caracteres.';
+    render(); return;
+  }
+  const { error } = await sb.from('users').update({ password: f.new1 }).eq('id', state.currentUser.id);
+  if(!error){
+    state.currentUser.password = f.new1;
+    state.showPasswordModal = false;
+    state.passwordForm = { current:'', new1:'', new2:'' };
+    state.passwordError = '';
+    showToast('✦ Senha alterada com sucesso!');
+  }
+}
 
 async function submitBirthday(){
   const f = state.birthdayForm;
@@ -1247,6 +1275,7 @@ function renderApp(){
     ${state.showEventModal ? renderEventModal() : ''}
     ${state.showPersonalEventModal ? renderPersonalEventModal() : ''}
     ${state.showBirthdayModal ? renderBirthdayModal() : ''}
+    ${state.showPasswordModal ? renderPasswordModal() : ''}
     ${state.confirm ? renderConfirm() : ''}
     ${state.toast ? `<div class="toast">${state.toast}</div>` : ''}
   </div>`;
@@ -1835,6 +1864,11 @@ function renderProfile(){
       <div style="font-size:13px;color:var(--muted);padding:12px;background:var(--cream);border-radius:3px">
         Clique em <strong>Alterar foto</strong> para fazer upload de uma imagem. Formatos aceitos: JPG, PNG. Tamanho máximo: 2MB.
       </div>
+    </div>
+    <div class="profile-section">
+      <div style="font-family:'Fraunces',serif;font-size:17px;font-weight:600;color:var(--ink);margin-bottom:16px">🔒 Segurança</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:16px">Recomendamos trocar sua senha no primeiro acesso.</div>
+      <button class="btn btn-primary" id="changePasswordBtn">🔒 Trocar Senha</button>
     </div>`;
 }
 
@@ -1973,6 +2007,39 @@ function renderBirthdayModal(){
       <div class="modal-footer">
         <button class="btn btn-secondary" id="cancelBirthdayModal">Cancelar</button>
         <button class="btn btn-primary" id="submitBirthday">Salvar 🎂</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+
+function renderPasswordModal(){
+  const f = state.passwordForm;
+  return `
+  <div class="modal-overlay" id="passwordModalOverlay">
+    <div class="modal" style="max-width:420px">
+      <div class="modal-header">
+        <div class="modal-title">🔒 Trocar Senha</div>
+        <button class="modal-close" id="closePasswordModal">×</button>
+      </div>
+      <div class="modal-body">
+        ${state.passwordError ? `<div class="login-error" style="margin-bottom:16px">${state.passwordError}</div>` : ''}
+        <div class="form-group">
+          <label class="form-label">Senha Atual</label>
+          <input class="form-input" id="currentPassword" type="password" placeholder="Digite sua senha atual" value="${f.current}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nova Senha</label>
+          <input class="form-input" id="newPassword1" type="password" placeholder="Digite a nova senha" value="${f.new1}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Confirmar Nova Senha</label>
+          <input class="form-input" id="newPassword2" type="password" placeholder="Confirme a nova senha" value="${f.new2}">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancelPasswordModal">Cancelar</button>
+        <button class="btn btn-primary" id="submitPassword" ${!f.current||!f.new1||!f.new2?'disabled':''}>Salvar →</button>
       </div>
     </div>
   </div>`;
@@ -2403,6 +2470,24 @@ function bindApp(){
 
 
 
+
+
+  // Change password
+  const changePasswordBtn = document.getElementById('changePasswordBtn');
+  if(changePasswordBtn) changePasswordBtn.onclick = ()=>{ state.showPasswordModal=true; state.passwordError=''; render(); };
+
+  if(state.showPasswordModal){
+    document.getElementById('closePasswordModal').onclick = ()=>{ state.showPasswordModal=false; state.passwordError=''; render(); };
+    document.getElementById('cancelPasswordModal').onclick = ()=>{ state.showPasswordModal=false; state.passwordError=''; render(); };
+    document.getElementById('passwordModalOverlay').onclick = e=>{ if(e.target.id==='passwordModalOverlay'){ state.showPasswordModal=false; render(); }};
+    const cp = document.getElementById('currentPassword');
+    if(cp) cp.oninput = e=>{ state.passwordForm.current=e.target.value; document.getElementById('submitPassword').disabled=!state.passwordForm.current||!state.passwordForm.new1||!state.passwordForm.new2; };
+    const np1 = document.getElementById('newPassword1');
+    if(np1) np1.oninput = e=>{ state.passwordForm.new1=e.target.value; document.getElementById('submitPassword').disabled=!state.passwordForm.current||!state.passwordForm.new1||!state.passwordForm.new2; };
+    const np2 = document.getElementById('newPassword2');
+    if(np2) np2.oninput = e=>{ state.passwordForm.new2=e.target.value; document.getElementById('submitPassword').disabled=!state.passwordForm.current||!state.passwordForm.new1||!state.passwordForm.new2; };
+    document.getElementById('submitPassword').onclick = submitChangePassword;
+  }
 
   // Birthday modal
   document.querySelectorAll('[data-edit-birthday]').forEach(el=>{
