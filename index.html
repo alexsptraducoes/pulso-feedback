@@ -323,6 +323,33 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .profile-avatar-wrap{display:flex;align-items:center;gap:20px;margin-bottom:20px}
 .profile-upload-btn{display:inline-block;padding:8px 16px;background:var(--cream);border:1px solid var(--border);border-radius:3px;font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;color:var(--ink)}
 .profile-upload-btn:hover{background:var(--sand)}
+
+/* CALENDAR */
+.cal-wrap{background:var(--white);border:1px solid var(--border);border-radius:4px;overflow:hidden;margin-bottom:24px}
+.cal-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);background:var(--cream)}
+.cal-title{font-family:'Fraunces',serif;font-size:18px;font-weight:600}
+.cal-nav{background:none;border:1px solid var(--border);border-radius:3px;padding:6px 12px;cursor:pointer;font-size:13px;color:var(--ink);font-family:'DM Sans',sans-serif}
+.cal-nav:hover{background:var(--sand)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr)}
+.cal-day-name{text-align:center;padding:10px 4px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid var(--border)}
+.cal-cell{min-height:80px;border-right:1px solid var(--cream);border-bottom:1px solid var(--cream);padding:6px;position:relative;vertical-align:top}
+.cal-cell:nth-child(7n){border-right:none}
+.cal-cell.other-month{background:var(--cream);opacity:.5}
+.cal-cell.today{background:#fff8f0}
+.cal-date{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:4px}
+.cal-cell.today .cal-date{color:var(--accent);font-weight:700}
+.cal-event-pill{font-size:10px;padding:2px 6px;border-radius:2px;margin-bottom:2px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+.cal-event-pill.accent{background:#fde8e3;color:var(--accent)}
+.cal-event-pill.positive{background:var(--positive-bg);color:var(--positive)}
+.cal-event-pill.blue{background:#d0e8ff;color:#0a58ca}
+.cal-event-pill.purple{background:#ede0ff;color:#6a3d9a}
+.event-card{background:var(--white);border:1px solid var(--border);border-radius:4px;padding:16px 20px;margin-bottom:10px;border-left:3px solid var(--accent);display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.event-date-badge{background:var(--ink);color:var(--paper);border-radius:3px;padding:6px 10px;text-align:center;flex-shrink:0;min-width:44px}
+.event-day{font-family:'Fraunces',serif;font-size:22px;font-weight:700;line-height:1}
+.event-month{font-size:9px;text-transform:uppercase;letter-spacing:.08em;opacity:.6;margin-top:2px}
+.event-title{font-size:14px;font-weight:600;color:var(--ink)}
+.event-desc{font-size:12px;color:var(--muted);margin-top:3px}
+.event-time{font-size:11px;color:var(--accent);margin-top:4px;font-weight:500}
 </style>
 </head>
 <body>
@@ -368,6 +395,11 @@ let state = {
   employeeOfMonth: [],
   showEomModal: false,
   eomForm: { userId:'', reason:'' },
+  events: [],
+  showEventModal: false,
+  eventForm: { title:'', description:'', event_date:'', event_time:'', color:'accent' },
+  calMonth: new Date().getMonth(),
+  calYear: new Date().getFullYear(),
   showMsgModal: false,
   msgForm: { type:'Elogio', title:'', content:'' },
   replyText: '',
@@ -429,6 +461,8 @@ async function loadData(){
   state.evaluations = evaluations || [];
   const { data: eom } = await sb.from('employee_of_month').select('*').order('created_at', { ascending: false });
   state.employeeOfMonth = eom || [];
+  const { data: events } = await sb.from('events').select('*').order('event_date');
+  state.events = events || [];
 }
 
 async function handleLogin(){
@@ -536,6 +570,13 @@ async function submitAnnouncement(){
     state.announcements = [data, ...state.announcements];
     state.showAnnModal = false;
     state.annForm = { title:'', content:'', priority:'normal' };
+    // Notify all users
+    if(Notification.permission==='granted'){
+      new Notification('📋 Novo Aviso — SP Traduções', {
+        body: data.title,
+        tag: 'pulso-announcement'
+      });
+    }
     showToast('✦ Aviso publicado com sucesso!');
   }
 }
@@ -596,6 +637,35 @@ async function deletePoll(id){
   }
 }
 
+
+async function submitEvent(){
+  const f = state.eventForm;
+  if(!f.title || !f.event_date) return;
+  const { data, error } = await sb.from('events').insert({
+    from_id: state.currentUser.id,
+    title: f.title, description: f.description,
+    event_date: f.event_date, event_time: f.event_time||null, color: f.color
+  }).select().single();
+  if(!error && data){
+    state.events = [...state.events, data].sort((a,b)=>a.event_date.localeCompare(b.event_date));
+    state.showEventModal = false;
+    state.eventForm = { title:'', description:'', event_date:'', event_time:'', color:'accent' };
+    if(Notification.permission==='granted'){
+      new Notification('📅 Novo Evento — SP Traduções', { body: data.title + ' · ' + new Date(data.event_date+'T12:00:00').toLocaleDateString('pt-BR'), tag:'pulso-event' });
+    }
+    showToast('✦ Evento adicionado!');
+  }
+}
+
+async function deleteEvent(id){
+  const { error } = await sb.from('events').delete().eq('id', id);
+  if(!error){
+    state.events = state.events.filter(e=>e.id!==id);
+    state.confirm = null;
+    showToast('Evento excluído.');
+  }
+}
+
 async function submitPoll(){
   const f = state.pollForm;
   const opts = f.options.filter(o=>o.trim());
@@ -607,6 +677,9 @@ async function submitPoll(){
     state.polls = [data, ...state.polls];
     state.showPollModal = false;
     state.pollForm = { question:'', options:['',''] };
+    if(Notification.permission==='granted'){
+      new Notification('📊 Nova Enquete — SP Traduções', { body: data.question, tag:'pulso-poll' });
+    }
     showToast('✦ Enquete criada!');
   }
 }
@@ -692,6 +765,33 @@ function exportPDF(){
 .profile-avatar-wrap{display:flex;align-items:center;gap:20px;margin-bottom:20px}
 .profile-upload-btn{display:inline-block;padding:8px 16px;background:var(--cream);border:1px solid var(--border);border-radius:3px;font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;color:var(--ink)}
 .profile-upload-btn:hover{background:var(--sand)}
+
+/* CALENDAR */
+.cal-wrap{background:var(--white);border:1px solid var(--border);border-radius:4px;overflow:hidden;margin-bottom:24px}
+.cal-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);background:var(--cream)}
+.cal-title{font-family:'Fraunces',serif;font-size:18px;font-weight:600}
+.cal-nav{background:none;border:1px solid var(--border);border-radius:3px;padding:6px 12px;cursor:pointer;font-size:13px;color:var(--ink);font-family:'DM Sans',sans-serif}
+.cal-nav:hover{background:var(--sand)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr)}
+.cal-day-name{text-align:center;padding:10px 4px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid var(--border)}
+.cal-cell{min-height:80px;border-right:1px solid var(--cream);border-bottom:1px solid var(--cream);padding:6px;position:relative;vertical-align:top}
+.cal-cell:nth-child(7n){border-right:none}
+.cal-cell.other-month{background:var(--cream);opacity:.5}
+.cal-cell.today{background:#fff8f0}
+.cal-date{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:4px}
+.cal-cell.today .cal-date{color:var(--accent);font-weight:700}
+.cal-event-pill{font-size:10px;padding:2px 6px;border-radius:2px;margin-bottom:2px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+.cal-event-pill.accent{background:#fde8e3;color:var(--accent)}
+.cal-event-pill.positive{background:var(--positive-bg);color:var(--positive)}
+.cal-event-pill.blue{background:#d0e8ff;color:#0a58ca}
+.cal-event-pill.purple{background:#ede0ff;color:#6a3d9a}
+.event-card{background:var(--white);border:1px solid var(--border);border-radius:4px;padding:16px 20px;margin-bottom:10px;border-left:3px solid var(--accent);display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.event-date-badge{background:var(--ink);color:var(--paper);border-radius:3px;padding:6px 10px;text-align:center;flex-shrink:0;min-width:44px}
+.event-day{font-family:'Fraunces',serif;font-size:22px;font-weight:700;line-height:1}
+.event-month{font-size:9px;text-transform:uppercase;letter-spacing:.08em;opacity:.6;margin-top:2px}
+.event-title{font-size:14px;font-weight:600;color:var(--ink)}
+.event-desc{font-size:12px;color:var(--muted);margin-top:3px}
+.event-time{font-size:11px;color:var(--accent);margin-top:4px;font-weight:500}
 </style></head><body>
   <h1>SP Traduções · Relatório de Feedback</h1>
   <p style="color:#7a7166">${monthName} · Gerado em ${now.toLocaleDateString('pt-BR')}</p>
@@ -747,6 +847,9 @@ async function submitReply(msgId){
     state.messages = state.messages.map(m => m.id===msgId ? data : m);
     state.replyingId = null;
     state.replyText = '';
+    if(Notification.permission==='granted'){
+      new Notification('✉ O CEO respondeu sua mensagem — Pulso', { body: state.replyText, tag:'pulso-reply' });
+    }
     showToast('Resposta enviada!');
   }
 }
@@ -791,6 +894,7 @@ function renderApp(){
     ? [
         {id:'dashboard',label:'Meus Feedbacks',icon:'my'},
         {id:'messages',label:'Mensagens',icon:'msg'},
+        {id:'calendar',label:'Calendário',icon:'cal'},
         {id:'profile',label:'Meu Perfil',icon:'usr'}
       ]
     : [
@@ -800,6 +904,7 @@ function renderApp(){
         ...(u.role==='admin' ? [{id:'users',label:'Usuários',icon:'usr'}] : []),
         {id:'messages',label:'Mensagens',icon:'msg'},
         {id:'profile',label:'Meu Perfil',icon:'usr'},
+        {id:'calendar',label:'Calendário',icon:'cal'},
         {id:'announcements',label:'Quadro de Avisos',icon:'ann'},
         {id:'polls',label:'Enquetes',icon:'poll'},
         {id:'evals',label:'Avaliações',icon:'eval'},
@@ -807,7 +912,7 @@ function renderApp(){
       ];
 
   const roleLabel = u.role==='admin' ? 'Admin · CEO' : u.role==='leader' ? 'Líder' : 'Colaborador';
-  const viewTitles = {dashboard: u.role==='employee' ? 'Meus Feedbacks' : 'Visão Geral', all:'Feedbacks', people: u.role==='admin' ? 'Todos os Times' : 'Meu Time', users:'Gerenciar Usuários', messages:'Mensagens', profile:'Meu Perfil', announcements:'Quadro de Avisos', polls:'Enquetes', evals:'Avaliações', eom:'Destaque do Mês'};
+  const viewTitles = {dashboard: u.role==='employee' ? 'Meus Feedbacks' : 'Visão Geral', all:'Feedbacks', people: u.role==='admin' ? 'Todos os Times' : 'Meu Time', users:'Gerenciar Usuários', messages:'Mensagens', profile:'Meu Perfil', calendar:'Calendário', announcements:'Quadro de Avisos', polls:'Enquetes', evals:'Avaliações', eom:'Destaque do Mês'};
 
   return `
   <div class="app">
@@ -842,6 +947,7 @@ function renderApp(){
           ${canGive ? `<button class="btn btn-primary" id="newFbBtn">${svgIcon('add')} Novo Feedback</button>` : ''}
           ${u.role!=='admin' && state.view==='messages' ? `<button class="btn btn-primary" id="newMsgBtn">${svgIcon('add')} Nova Mensagem</button>` : ''}
           ${u.role==='admin' && state.view==='announcements' ? `<button class="btn btn-primary" id="newAnnBtn">${svgIcon('add')} Novo Aviso</button>` : ''}
+          ${u.role==='admin' && state.view==='calendar' ? `<button class="btn btn-primary" id="newEventBtn">${svgIcon('add')} Novo Evento</button>` : ''}
           ${u.role==='admin' && state.view==='polls' ? `<button class="btn btn-primary" id="newPollBtn">${svgIcon('add')} Nova Enquete</button>` : ''}
           ${(u.role==='admin'||u.role==='leader') && state.view==='evals' ? `<button class="btn btn-primary" id="newEvalBtn">${svgIcon('add')} Nova Avaliação</button>` : ''}
           ${u.role==='admin' && state.view==='eom' ? `<button class="btn btn-primary" id="newEomBtn">🏆 Definir Destaque</button>` : ''}
@@ -858,6 +964,7 @@ function renderApp(){
     ${state.showPollModal ? renderPollModal() : ''}
     ${state.showEvalModal ? renderEvalModal() : ''}
     ${state.showEomModal ? renderEomModal() : ''}
+    ${state.showEventModal ? renderEventModal() : ''}
     ${state.confirm ? renderConfirm() : ''}
     ${state.toast ? `<div class="toast">${state.toast}</div>` : ''}
   </div>`;
@@ -872,6 +979,7 @@ function renderView(){
   if(state.view==='users') return renderUsers();
   if(state.view==='messages') return renderMessages();
   if(state.view==='profile') return renderProfile();
+  if(state.view==='calendar') return renderCalendar();
   if(state.view==='announcements') return renderAnnouncements();
   if(state.view==='polls') return renderPolls();
   if(state.view==='evals') return renderEvals();
@@ -1440,6 +1548,153 @@ function renderProfile(){
     </div>`;
 }
 
+
+function renderCalendar(){
+  const u = state.currentUser;
+  const isAdmin = u.role==='admin';
+  const months = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const m = state.calMonth;
+  const y = state.calYear;
+  const firstDay = new Date(y, m, 1).getDay();
+  const daysInMonth = new Date(y, m+1, 0).getDate();
+  const daysInPrev = new Date(y, m, 0).getDate();
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0,10);
+
+  // Upcoming events list
+  const upcoming = state.events.filter(e=>e.event_date >= todayStr).slice(0,5);
+
+  let cells = '';
+  // prev month days
+  for(let i=firstDay-1;i>=0;i--){
+    cells += `<div class="cal-cell other-month"><div class="cal-date">${daysInPrev-i}</div></div>`;
+  }
+  // current month days
+  for(let d=1;d<=daysInMonth;d++){
+    const dateStr = y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    const isToday = dateStr===todayStr;
+    const dayEvents = state.events.filter(e=>e.event_date===dateStr);
+    cells += `<div class="cal-cell ${isToday?'today':''}">
+      <div class="cal-date">${d}</div>
+      ${dayEvents.map(e=>`<div class="cal-event-pill ${e.color||'accent'}" title="${e.title}">${e.title}</div>`).join('')}
+    </div>`;
+  }
+  // next month days
+  const totalCells = Math.ceil((firstDay + daysInMonth) / 7) * 7;
+  for(let d=1;d<=totalCells-(firstDay+daysInMonth);d++){
+    cells += `<div class="cal-cell other-month"><div class="cal-date">${d}</div></div>`;
+  }
+
+  const dayNames = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+
+  return `
+    <div class="cal-wrap">
+      <div class="cal-header">
+        <button class="cal-nav" id="calPrev">← Anterior</button>
+        <div class="cal-title">${months[m]} ${y}</div>
+        <button class="cal-nav" id="calNext">Próximo →</button>
+      </div>
+      <div class="cal-grid">
+        ${dayNames.map(d=>`<div class="cal-day-name">${d}</div>`).join('')}
+        ${cells}
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Próximos Eventos</div>
+        ${isAdmin ? `<button class="btn btn-primary" id="newEventBtn">${svgIcon('add')} Novo Evento</button>` : ''}
+      </div>
+      ${upcoming.length===0 ? `<div class="empty-state"><div class="empty-icon">📅</div><div class="empty-title">Nenhum evento próximo</div><div class="empty-text">${isAdmin?'Clique em Novo Evento para adicionar um compromisso.':'Nenhum evento agendado ainda.'}</div></div>` :
+        upcoming.map(e=>{
+          const dt = new Date(e.event_date+'T12:00:00');
+          const day = dt.getDate();
+          const mon = dt.toLocaleDateString('pt-BR',{month:'short'}).replace('.','');
+          return `<div class="event-card">
+            <div class="event-date-badge">
+              <div class="event-day">${day}</div>
+              <div class="event-month">${mon}</div>
+            </div>
+            <div style="flex:1">
+              <div class="event-title">${e.title}</div>
+              ${e.description ? `<div class="event-desc">${e.description}</div>` : ''}
+              ${e.event_time ? `<div class="event-time">🕐 ${e.event_time.slice(0,5)}</div>` : ''}
+            </div>
+            ${isAdmin ? `<button class="btn btn-danger btn-sm" data-delete-event="${e.id}" data-delete-event-title="${e.title.replace(/"/g,'&quot;')}">🗑</button>` : ''}
+          </div>`;
+        }).join('')}
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Todos os Eventos</div>
+        <span class="section-count">${state.events.length} evento${state.events.length!==1?'s':''}</span>
+      </div>
+      ${state.events.length===0 ? '' :
+        state.events.map(e=>{
+          const dt = new Date(e.event_date+'T12:00:00');
+          const day = dt.getDate();
+          const mon = dt.toLocaleDateString('pt-BR',{month:'short'}).replace('.','');
+          return `<div class="event-card">
+            <div class="event-date-badge">
+              <div class="event-day">${day}</div>
+              <div class="event-month">${mon}</div>
+            </div>
+            <div style="flex:1">
+              <div class="event-title">${e.title}</div>
+              ${e.description ? `<div class="event-desc">${e.description}</div>` : ''}
+              ${e.event_time ? `<div class="event-time">🕐 ${e.event_time.slice(0,5)}</div>` : ''}
+            </div>
+            ${isAdmin ? `<button class="btn btn-danger btn-sm" data-delete-event="${e.id}" data-delete-event-title="${e.title.replace(/"/g,'&quot;')}">🗑</button>` : ''}
+          </div>`;
+        }).join('')}
+    </div>`;
+}
+
+function renderEventModal(){
+  const f = state.eventForm;
+  const colors = [{id:'accent',label:'Vermelho'},{id:'positive',label:'Verde'},{id:'blue',label:'Azul'},{id:'purple',label:'Roxo'}];
+  return `
+  <div class="modal-overlay" id="eventModalOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">Novo Evento</div>
+        <button class="modal-close" id="closeEventModal">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Título do Evento</label>
+          <input class="form-input" id="eventTitle" placeholder="Ex: Reunião de time, Prazo entrega..." value="${f.title}">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Data</label>
+            <input class="form-input" id="eventDate" type="date" value="${f.event_date}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Horário (opcional)</label>
+            <input class="form-input" id="eventTime" type="time" value="${f.event_time}">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Descrição (opcional)</label>
+          <textarea class="form-textarea" id="eventDesc" placeholder="Detalhes do evento...">${f.description}</textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Cor</label>
+          <div style="display:flex;gap:8px">
+            ${colors.map(c=>`<button class="type-btn ${f.color===c.id?'sel-'+(c.id==='accent'||c.id==='purple'?'constructive':'positive'):''}" data-eventcolor="${c.id}" style="flex:none;padding:8px 14px">${c.label}</button>`).join('')}
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancelEventModal">Cancelar</button>
+        <button class="btn btn-primary" id="submitEvent" ${!f.title||!f.event_date?'disabled':''}>Adicionar →</button>
+      </div>
+    </div>
+  </div>`;
+}
+
 function renderPolls(){
   const u = state.currentUser;
   const isAdmin = u.role==='admin';
@@ -1757,6 +2012,7 @@ function bindApp(){
       else if(state.confirm.type==='announcement') deleteAnnouncement(state.confirm.id);
       else if(state.confirm.type==='message') deleteMessage(state.confirm.id);
       else if(state.confirm.type==='poll') deletePoll(state.confirm.id);
+      else if(state.confirm.type==='event') deleteEvent(state.confirm.id);
       else deleteUser(state.confirm.id);
     };
   }
@@ -1786,6 +2042,38 @@ function bindApp(){
   // Avatar upload
   const avatarInput = document.getElementById('avatarInput');
   if(avatarInput) avatarInput.onchange = e=>{ if(e.target.files[0]) uploadAvatar(e.target.files[0]); };
+
+
+  // Calendar
+  const calPrev = document.getElementById('calPrev');
+  if(calPrev) calPrev.onclick = ()=>{ state.calMonth--; if(state.calMonth<0){state.calMonth=11;state.calYear--;} render(); };
+  const calNext = document.getElementById('calNext');
+  if(calNext) calNext.onclick = ()=>{ state.calMonth++; if(state.calMonth>11){state.calMonth=0;state.calYear++;} render(); };
+
+  const newEventBtn = document.getElementById('newEventBtn');
+  if(newEventBtn) newEventBtn.onclick = ()=>{ state.showEventModal=true; render(); };
+
+  document.querySelectorAll('[data-delete-event]').forEach(el=>{
+    el.onclick = ()=>{ state.confirm = { type:'event', id:el.dataset.deleteEvent, name:el.dataset.deleteEventTitle }; render(); };
+  });
+
+  if(state.showEventModal){
+    document.getElementById('closeEventModal').onclick = ()=>{ state.showEventModal=false; render(); };
+    document.getElementById('cancelEventModal').onclick = ()=>{ state.showEventModal=false; render(); };
+    document.getElementById('eventModalOverlay').onclick = e=>{ if(e.target.id==='eventModalOverlay'){ state.showEventModal=false; render(); }};
+    const evTitle = document.getElementById('eventTitle');
+    if(evTitle) evTitle.oninput = e=>{ state.eventForm.title=e.target.value; document.getElementById('submitEvent').disabled=!state.eventForm.title||!state.eventForm.event_date; };
+    const evDate = document.getElementById('eventDate');
+    if(evDate) evDate.onchange = e=>{ state.eventForm.event_date=e.target.value; document.getElementById('submitEvent').disabled=!state.eventForm.title||!state.eventForm.event_date; };
+    const evTime = document.getElementById('eventTime');
+    if(evTime) evTime.onchange = e=>{ state.eventForm.event_time=e.target.value; };
+    const evDesc = document.getElementById('eventDesc');
+    if(evDesc) evDesc.oninput = e=>{ state.eventForm.description=e.target.value; };
+    document.querySelectorAll('[data-eventcolor]').forEach(el=>{
+      el.onclick = ()=>{ state.eventForm.color=el.dataset.eventcolor; render(); };
+    });
+    document.getElementById('submitEvent').onclick = submitEvent;
+  }
 
   // Export PDF
   const exportPdfBtn = document.getElementById('exportPdfBtn');
@@ -1937,6 +2225,7 @@ function svgIcon(n){
     add:`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
     logout:`<svg width="13" height="13" viewBox="0 0 24 24" ${s}><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`,
     msg:`<svg width="15" height="15" viewBox="0 0 24 24" ${s}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>`,
+    cal:`<svg width="15" height="15" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" fill="none"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
     poll:`<svg width="15" height="15" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" fill="none"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`,
     eval:`<svg width="15" height="15" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" fill="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,
     star:`<svg width="15" height="15" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" fill="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,
