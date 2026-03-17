@@ -612,7 +612,7 @@ async function loadData(){
   const { data: timeRecs } = await timeQuery;
   state.timeRecords = timeRecs || [];
   state.allUsersTimeRecords = state.currentUser.role !== 'employee' ? (timeRecs || []) : [];
-  state.todayRecord = state.timeRecords.find(r=>r.date===todayStr2) || null;
+  state.todayRecord = state.timeRecords.find(r=>r.date===todayStr2 && r.user_id===state.currentUser.id) || null;
   const { data: absencesData } = await sb.from('absences').select('*').order('date', { ascending: false });
   state.absences = absencesData || [];
   // Start event reminder checker
@@ -2380,8 +2380,9 @@ function renderTimeClock(){
 
   const todayHours = calcHours(r);
 
-  // Filter records for current view month
-  const viewRecs = state.timeRecords.filter(rec=>{
+  // Filter records for current view month (own records only)
+  const myRecords = state.timeRecords.filter(r=>r.user_id===u.id);
+  const viewRecs = myRecords.filter(rec=>{
     const d = new Date(rec.date+'T12:00:00');
     return d.getMonth()===state.timeViewMonth && d.getFullYear()===state.timeViewYear;
   });
@@ -2533,7 +2534,10 @@ function renderTimeClock(){
           `<div class="time-table"><table>
             <thead><tr><th>Colaborador</th><th>Data</th><th>Entrada</th><th>Saída Almoço</th><th>Retorno</th><th>Saída</th><th>Total</th><th></th></tr></thead>
             <tbody>
-              ${state.allUsersTimeRecords.map(rec=>{
+              ${(state.allUsersTimeRecords.length > 0 ? state.allUsersTimeRecords : state.timeRecords).filter(r=>{
+                const d = new Date(r.date+'T12:00:00');
+                return d.getMonth()===state.timeViewMonth && d.getFullYear()===state.timeViewYear;
+              }).map(rec=>{
                 const usr = getUserById(rec.user_id);
                 const h = rec.total_hours || calcHours(rec);
                 const dt = new Date(rec.date+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
