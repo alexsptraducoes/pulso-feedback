@@ -524,11 +524,9 @@ async function loadData(){
   state.events = events || [];
   const { data: personalEvents } = await sb.from('personal_events').select('*').eq('user_id', state.currentUser.id).order('event_date');
   state.personalEvents = personalEvents || [];
-  // Load notifications from DB
-  const { data: dbNotifs } = await sb.from('notifications').select('*').eq('user_id', state.currentUser.id).order('created_at', { ascending: false }).limit(50);
-  if(dbNotifs && dbNotifs.length > 0){
-    state.notifications = dbNotifs;
-  }
+  // Load only unread notifications from DB
+  const { data: dbNotifs } = await sb.from('notifications').select('*').eq('user_id', state.currentUser.id).eq('read', false).order('created_at', { ascending: false }).limit(50);
+  state.notifications = dbNotifs || [];
   // Start event reminder checker
   startEventReminders();
 }
@@ -764,6 +762,12 @@ async function markAllReadDB(){
   await sb.from('notifications').update({ read: true }).eq('user_id', state.currentUser.id);
   state.notifications = state.notifications.map(n=>({...n,read:true}));
   render();
+  // Delete read notifications after 5 seconds so they don't reappear
+  setTimeout(async ()=>{
+    await sb.from('notifications').delete().eq('user_id', state.currentUser.id).eq('read', true);
+    state.notifications = state.notifications.filter(n=>!n.read);
+    render();
+  }, 5000);
 }
 
 async function clearNotificationsDB(){
@@ -777,8 +781,8 @@ function startNotifPolling(){
   setInterval(async ()=>{
     if(!state.currentUser) return;
     const latest = state.notifications[0];
-    let query = sb.from('notifications').select('*').eq('user_id', state.currentUser.id).order('created_at', { ascending: false }).limit(20);
-    if(latest) query = query.gt('created_at', latest.created_at);
+    let query = sb.from('notifications').select('*').eq('user_id', state.currentUser.id).eq('read', false).order('created_at', { ascending: false }).limit(20);
+    if(latest) query = query.gt('created_at', latest.created_at||new Date(0).toISOString());
     const { data } = await query;
     if(data && data.length > 0){
       state.notifications = [...data, ...state.notifications].slice(0,50);
