@@ -2381,7 +2381,7 @@ function renderProfile(){
           : `<div class="avatar" style="width:80px;height:80px;font-size:24px;font-weight:700;background:var(--sand);border-radius:50%;display:flex;align-items:center;justify-content:center">${initials(u.name)}</div>`}
         <div>
           <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:600">${u.name}</div>
-          <div style="font-size:13px;color:var(--muted);margin-top:4px">${u.role==='admin'?'Admin':u.role==='leader'?'Líder':'Colaborador'}${u.department?' · '+u.department:''}</div>
+          <div style="font-size:13px;color:var(--muted);margin-top:4px">${u.role==='admin'?'Admin':u.role==='manager'?'Gestor Administrativo':u.role==='leader'?'Líder':'Colaborador'}${u.department?' · '+u.department:''}</div>
           <label class="profile-upload-btn" style="margin-top:12px;display:inline-block">
             📷 Alterar foto
             <input type="file" id="avatarInput" accept="image/*" style="display:none">
