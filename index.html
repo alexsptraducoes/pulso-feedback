@@ -9,10 +9,10 @@
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --ink:#0d0d0d;--paper:#f5f0e8;--cream:#ede8dc;--sand:#d9d2c0;
+  --ink:#0d0d0d;  --blue:#11008d;--paper:#f5f0e8;--cream:#ede8dc;--sand:#d9d2c0;
   --positive:#2d6a4f;--positive-bg:#d8f3dc;
   --constructive:#c44b2b;--constructive-bg:#fde8e3;
-  --accent:#b5451b;--muted:#7a7166;--border:#e0d9cc;--white:#ffffff;
+  --accent:#11008d;--muted:#7a7166;--border:#e0d9cc;--white:#ffffff;
   --shadow:0 4px 24px rgba(13,13,13,0.07);
   --shadow-md:0 8px 32px rgba(13,13,13,0.10);
   --shadow-lg:0 16px 48px rgba(13,13,13,0.14);
@@ -22,9 +22,9 @@ body{font-family:'DM Sans',sans-serif;background:#ede8dc;color:var(--ink);min-he
 
 /* LOGIN */
 .login-screen{width:100%;min-height:100vh;display:flex;align-items:center;justify-content:center;
-  background:var(--ink);
-  background-image:radial-gradient(ellipse at 20% 80%,rgba(181,69,27,.18) 0%,transparent 60%),
-                   radial-gradient(ellipse at 80% 20%,rgba(217,210,192,.07) 0%,transparent 60%)}
+  background:linear-gradient(135deg,#0a0060 0%,#13029e 50%,#1704ad 100%);
+  background-image:radial-gradient(ellipse at 20% 80%,rgba(255,255,255,.08) 0%,transparent 60%),
+                   radial-gradient(ellipse at 80% 20%,rgba(255,255,255,.05) 0%,transparent 60%)}
 .login-card{background:var(--paper);border-radius:var(--radius-lg);padding:52px;width:440px;box-shadow:0 24px 64px rgba(13,13,13,0.18);border:1px solid rgba(255,255,255,.6)}
 .login-logo{font-family:'Fraunces',serif;font-size:32px;font-weight:700;color:var(--ink)}
 .login-subtitle{font-size:12px;color:var(--muted);margin-bottom:44px;letter-spacing:.06em;text-transform:uppercase;margin-top:6px}
@@ -32,15 +32,15 @@ body{font-family:'DM Sans',sans-serif;background:#ede8dc;color:var(--ink);min-he
 .login-input{width:100%;padding:13px 16px;border:1.5px solid var(--border);border-radius:var(--radius-sm);
   background:var(--white);font-family:'DM Sans',sans-serif;font-size:14px;color:var(--ink);margin-bottom:18px;transition:border-color .15s}
 .login-input:focus{outline:none;border-color:var(--ink)}
-.login-btn{width:100%;padding:15px;background:var(--ink);color:var(--paper);border:none;border-radius:var(--radius-sm);
+.login-btn{width:100%;padding:15px;background:#11008d;color:var(--paper);border:none;border-radius:var(--radius-sm);
   font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;letter-spacing:.04em;transition:all .2s;margin-top:4px}
-.login-btn:hover{background:var(--accent)}
+.login-btn:hover{background:#1704ad}
 .login-btn:disabled{opacity:.5;cursor:not-allowed}
 .login-error{font-size:12px;color:var(--constructive);margin-bottom:12px;padding:10px 14px;background:var(--constructive-bg);border-radius:3px}
 
 /* LAYOUT */
 .app{display:flex;min-height:100vh}
-.sidebar{width:260px;min-height:100vh;background:linear-gradient(180deg,#1a1a1a 0%,#0d0d0d 100%);display:flex;flex-direction:column;position:fixed;left:0;top:0;z-index:100;box-shadow:4px 0 24px rgba(0,0,0,0.15)}
+.sidebar{width:260px;min-height:100vh;background:linear-gradient(180deg,#13029e 0%,#0a0060 100%);display:flex;flex-direction:column;position:fixed;left:0;top:0;z-index:100;box-shadow:4px 0 24px rgba(0,0,0,0.15)}
 .sidebar-brand{padding:28px 24px 22px;border-bottom:1px solid rgba(255,255,255,.06)}
 .sidebar-logo{font-family:'Fraunces',serif;font-size:24px;font-weight:700;color:var(--paper)}
 .sidebar-tagline{font-size:10px;color:rgba(245,240,232,.35);text-transform:uppercase;letter-spacing:.1em;margin-top:4px}
@@ -52,7 +52,7 @@ body{font-family:'DM Sans',sans-serif;background:#ede8dc;color:var(--ink);min-he
 .nav-item{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:var(--radius-sm);font-size:13px;
   color:rgba(245,240,232,.5);cursor:pointer;transition:all .2s;font-weight:400;border:none;background:none;width:100%;text-align:left}
 .nav-item:hover{color:var(--paper);background:rgba(255,255,255,.05)}
-.nav-item.active{color:var(--paper);background:rgba(181,69,27,.35);font-weight:500;border-left:3px solid var(--accent)}
+.nav-item.active{color:var(--paper);background:rgba(255,255,255,.18);font-weight:500;border-left:3px solid rgba(255,255,255,.8)}
 .sidebar-logout{padding:16px 24px;border-top:1px solid rgba(255,255,255,.06);font-size:12px;
   color:rgba(245,240,232,.32);cursor:pointer;transition:color .15s;display:flex;align-items:center;gap:8px;
   background:none;border-left:none;border-right:none;border-bottom:none;width:100%;text-align:left}
@@ -67,7 +67,7 @@ body{font-family:'DM Sans',sans-serif;background:#ede8dc;color:var(--ink);min-he
 /* STATS */
 .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-bottom:40px}
 .stat-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:24px;box-shadow:var(--shadow);transition:box-shadow .2s}
-.stat-card.dark{background:linear-gradient(135deg,#1a1a1a 0%,#2d1a0d 100%)}
+.stat-card.dark{background:linear-gradient(135deg,#0a0060 0%,#13029e 100%)}
 .stat-number{font-family:'Fraunces',serif;font-size:38px;font-weight:700;color:var(--ink)}
 .stat-card.dark .stat-number{color:var(--paper)}
 .stat-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:6px}
@@ -76,8 +76,8 @@ body{font-family:'DM Sans',sans-serif;background:#ede8dc;color:var(--ink);min-he
 /* RANKING */
 .ranking-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:40px}
 .ranking-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
-.ranking-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
-.ranking-title{font-family:'Fraunces',serif;font-size:16px;font-weight:600}
+.ranking-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;background:linear-gradient(135deg,#0a0060 0%,#13029e 100%);border-radius:var(--radius) var(--radius) 0 0}
+.ranking-title{font-family:'Fraunces',serif;font-size:16px;font-weight:600;color:#ffffff}
 .ranking-item{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--cream)}
 .ranking-item:last-child{border-bottom:none}
 .ranking-pos{font-family:'Fraunces',serif;font-size:18px;font-weight:700;color:var(--muted);width:24px;text-align:center}
@@ -125,8 +125,8 @@ body{font-family:'DM Sans',sans-serif;background:#ede8dc;color:var(--ink);min-he
 /* BUTTONS */
 .btn{display:inline-flex;align-items:center;gap:6px;padding:10px 20px;border-radius:var(--radius-sm);
   font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;border:none}
-.btn-primary{background:var(--ink);color:var(--paper)}
-.btn-primary:hover{background:var(--accent)}
+.btn-primary{background:#11008d;color:var(--paper)}
+.btn-primary:hover{background:#1704ad}
 .btn-primary:disabled{opacity:.4;cursor:not-allowed}
 .btn-secondary{background:var(--cream);color:var(--ink);border:1px solid var(--border)}
 .btn-secondary:hover{background:var(--sand)}
@@ -165,7 +165,7 @@ body{font-family:'DM Sans',sans-serif;background:#ede8dc;color:var(--ink);min-he
 .filters{display:flex;gap:8px;flex-wrap:wrap}
 .filter-btn{padding:7px 16px;border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;
   transition:all .15s;border:1.5px solid var(--border);background:var(--white);color:var(--muted);font-family:'DM Sans',sans-serif}
-.filter-btn.active{background:var(--ink);color:var(--paper);border-color:var(--ink);box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.filter-btn.active{background:#11008d;color:var(--paper);border-color:#11008d;box-shadow:0 2px 8px rgba(17,0,141,.25)}
 
 /* EMPTY */
 .empty-state{padding:60px 40px;text-align:center;background:var(--white);border:1px dashed var(--border);border-radius:4px}
@@ -184,7 +184,7 @@ body{font-family:'DM Sans',sans-serif;background:#ede8dc;color:var(--ink);min-he
 .person-counts{font-size:12px;color:var(--muted);margin-top:2px}
 
 /* MY HERO */
-.my-hero{background:linear-gradient(135deg,#1a1a1a 0%,#2d1a0d 100%);border-radius:var(--radius-lg);padding:32px;margin-bottom:32px;display:flex;align-items:center;gap:20px;box-shadow:var(--shadow-md)}
+.my-hero{background:linear-gradient(135deg,#0a0060 0%,#13029e 100%);border-radius:var(--radius-lg);padding:32px;margin-bottom:32px;display:flex;align-items:center;gap:20px;box-shadow:var(--shadow-md)}
 .my-hero-avatar{width:58px;height:58px;border-radius:50%;background:rgba(245,240,232,.12);display:flex;
   align-items:center;justify-content:center;font-size:18px;font-weight:700;color:var(--paper);flex-shrink:0}
 .my-hero-name{font-family:'Fraunces',serif;font-size:20px;color:var(--paper);font-weight:600}
@@ -200,8 +200,8 @@ body{font-family:'DM Sans',sans-serif;background:#ede8dc;color:var(--ink);min-he
 /* USERS ADMIN */
 .users-table{width:100%;background:var(--white);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
 .users-table table{width:100%;border-collapse:collapse}
-.users-table th{padding:12px 18px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);
-  text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid var(--border);background:var(--cream)}
+.users-table th{padding:12px 18px;text-align:left;font-size:10px;font-weight:700;color:#ffffff;
+  text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid var(--border);background:#11008d}
 .users-table td{padding:14px 18px;font-size:13px;border-bottom:1px solid var(--cream);color:var(--ink)}
 .users-table tr:last-child td{border-bottom:none}
 .role-pill{display:inline-block;padding:3px 10px;border-radius:2px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
@@ -215,7 +215,7 @@ body{font-family:'DM Sans',sans-serif;background:#ede8dc;color:var(--ink);min-he
 @keyframes spin{to{transform:rotate(360deg)}}
 
 /* TOAST */
-.toast{position:fixed;bottom:24px;right:24px;background:var(--ink);color:var(--paper);padding:14px 22px;
+.toast{position:fixed;bottom:24px;right:24px;background:#11008d;color:var(--paper);padding:14px 22px;
   border-radius:var(--radius-sm);font-size:13px;font-weight:500;z-index:999;box-shadow:var(--shadow-lg);
   animation:slideIn .25s ease}
 @keyframes slideIn{from{transform:translateY(12px);opacity:0}to{transform:translateY(0);opacity:1}}
@@ -231,7 +231,7 @@ body{font-family:'DM Sans',sans-serif;background:#ede8dc;color:var(--ink);min-he
   display:block;margin-bottom:16px;
 }
 .logo-img-sidebar{
-  width:90px;height:40px;
+  width:180px;height:80px;
   background-image:url('data:image/jpeg;base64,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');
   background-size:contain;background-repeat:no-repeat;background-position:left center;
   display:block;margin-bottom:6px;
@@ -303,7 +303,7 @@ body{font-family:'DM Sans',sans-serif;background:#ede8dc;color:var(--ink);min-he
 .eval-score-dot.filled{background:var(--accent)}
 
 /* EMPLOYEE OF MONTH */
-.eom-card{background:linear-gradient(135deg,#1a1a1a 0%,#2d1a0d 100%);border-radius:var(--radius-lg);padding:40px 32px;text-align:center;margin-bottom:32px;box-shadow:var(--shadow-md)}
+.eom-card{background:linear-gradient(135deg,#0a0060 0%,#13029e 100%);border-radius:var(--radius-lg);padding:40px 32px;text-align:center;margin-bottom:32px;box-shadow:var(--shadow-md)}
 .eom-crown{font-size:48px;margin-bottom:12px}
 .eom-name{font-family:'Fraunces',serif;font-size:28px;font-weight:700;color:var(--paper);margin-bottom:6px}
 .eom-dept{font-size:13px;color:rgba(245,240,232,.45);margin-bottom:12px}
@@ -329,10 +329,10 @@ body{font-family:'DM Sans',sans-serif;background:#ede8dc;color:var(--ink);min-he
 
 /* CALENDAR */
 .cal-wrap{background:var(--white);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;margin-bottom:24px;box-shadow:var(--shadow-md)}
-.cal-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);background:var(--cream)}
-.cal-title{font-family:'Fraunces',serif;font-size:18px;font-weight:600}
-.cal-nav{background:none;border:1px solid var(--border);border-radius:3px;padding:6px 12px;cursor:pointer;font-size:13px;color:var(--ink);font-family:'DM Sans',sans-serif}
-.cal-nav:hover{background:var(--sand)}
+.cal-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);background:linear-gradient(135deg,#0a0060 0%,#13029e 100%)}
+.cal-title{font-family:'Fraunces',serif;font-size:18px;font-weight:600;color:#ffffff}
+.cal-nav{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:3px;padding:6px 12px;cursor:pointer;font-size:13px;color:#ffffff;font-family:'DM Sans',sans-serif}
+.cal-nav:hover{background:rgba(255,255,255,.25)}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr)}
 .cal-day-name{text-align:center;padding:10px 4px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid var(--border)}
 .cal-cell{min-height:80px;border-right:1px solid var(--cream);border-bottom:1px solid var(--cream);padding:6px;position:relative;vertical-align:top}
@@ -347,7 +347,7 @@ body{font-family:'DM Sans',sans-serif;background:#ede8dc;color:var(--ink);min-he
 .cal-event-pill.blue{background:#d0e8ff;color:#0a58ca}
 .cal-event-pill.purple{background:#ede0ff;color:#6a3d9a}
 .event-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:10px;border-left:4px solid var(--accent);display:flex;align-items:flex-start;justify-content:space-between;gap:12px;box-shadow:var(--shadow);transition:all .2s}
-.event-date-badge{background:var(--ink);color:var(--paper);border-radius:3px;padding:6px 10px;text-align:center;flex-shrink:0;min-width:44px}
+.event-date-badge{background:#11008d;color:var(--paper);border-radius:3px;padding:6px 10px;text-align:center;flex-shrink:0;min-width:44px}
 .event-day{font-family:'Fraunces',serif;font-size:22px;font-weight:700;line-height:1}
 .event-month{font-size:9px;text-transform:uppercase;letter-spacing:.08em;opacity:.6;margin-top:2px}
 .event-title{font-size:14px;font-weight:600;color:var(--ink)}
@@ -950,10 +950,10 @@ function exportPDF(){
 
 /* CALENDAR */
 .cal-wrap{background:var(--white);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;margin-bottom:24px;box-shadow:var(--shadow-md)}
-.cal-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);background:var(--cream)}
-.cal-title{font-family:'Fraunces',serif;font-size:18px;font-weight:600}
-.cal-nav{background:none;border:1px solid var(--border);border-radius:3px;padding:6px 12px;cursor:pointer;font-size:13px;color:var(--ink);font-family:'DM Sans',sans-serif}
-.cal-nav:hover{background:var(--sand)}
+.cal-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);background:linear-gradient(135deg,#0a0060 0%,#13029e 100%)}
+.cal-title{font-family:'Fraunces',serif;font-size:18px;font-weight:600;color:#ffffff}
+.cal-nav{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:3px;padding:6px 12px;cursor:pointer;font-size:13px;color:#ffffff;font-family:'DM Sans',sans-serif}
+.cal-nav:hover{background:rgba(255,255,255,.25)}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr)}
 .cal-day-name{text-align:center;padding:10px 4px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid var(--border)}
 .cal-cell{min-height:80px;border-right:1px solid var(--cream);border-bottom:1px solid var(--cream);padding:6px;position:relative;vertical-align:top}
@@ -968,7 +968,7 @@ function exportPDF(){
 .cal-event-pill.blue{background:#d0e8ff;color:#0a58ca}
 .cal-event-pill.purple{background:#ede0ff;color:#6a3d9a}
 .event-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:10px;border-left:4px solid var(--accent);display:flex;align-items:flex-start;justify-content:space-between;gap:12px;box-shadow:var(--shadow);transition:all .2s}
-.event-date-badge{background:var(--ink);color:var(--paper);border-radius:3px;padding:6px 10px;text-align:center;flex-shrink:0;min-width:44px}
+.event-date-badge{background:#11008d;color:var(--paper);border-radius:3px;padding:6px 10px;text-align:center;flex-shrink:0;min-width:44px}
 .event-day{font-family:'Fraunces',serif;font-size:22px;font-weight:700;line-height:1}
 .event-month{font-size:9px;text-transform:uppercase;letter-spacing:.08em;opacity:.6;margin-top:2px}
 .event-title{font-size:14px;font-weight:600;color:var(--ink)}
@@ -1807,33 +1807,54 @@ function renderCalendar(){
   const today = new Date();
   const todayStr = today.toISOString().slice(0,10);
 
-  // Upcoming events list
-  const upcoming = [...state.events.filter(e=>e.event_date >= todayStr), ...state.personalEvents.filter(e=>e.event_date >= todayStr)].sort((a,b)=>a.event_date.localeCompare(b.event_date)).slice(0,8);
+  const allPersonal = state.personalEvents || [];
+  const allCompany = state.events || [];
+
+  const upcoming = [...allCompany.filter(e=>e.event_date >= todayStr), ...allPersonal.filter(e=>e.event_date >= todayStr)]
+    .sort((a,b)=>a.event_date.localeCompare(b.event_date)).slice(0,8);
 
   let cells = '';
-  // prev month days
   for(let i=firstDay-1;i>=0;i--){
     cells += `<div class="cal-cell other-month"><div class="cal-date">${daysInPrev-i}</div></div>`;
   }
-  // current month days
   for(let d=1;d<=daysInMonth;d++){
     const dateStr = y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
     const isToday = dateStr===todayStr;
-    const dayEvents = state.events.filter(e=>e.event_date===dateStr);
-    const dayPersonal = state.personalEvents.filter(e=>e.event_date===dateStr);
+    const dayEvents = allCompany.filter(e=>e.event_date===dateStr);
+    const dayPersonal = allPersonal.filter(e=>e.event_date===dateStr);
     cells += `<div class="cal-cell ${isToday?'today':''}">
       <div class="cal-date">${d}</div>
       ${dayEvents.map(e=>`<div class="cal-event-pill company" title="${e.title}">${e.title}</div>`).join('')}
       ${dayPersonal.map(e=>`<div class="cal-event-pill personal" title="${e.title}">🔒 ${e.title}</div>`).join('')}
     </div>`;
   }
-  // next month days
   const totalCells = Math.ceil((firstDay + daysInMonth) / 7) * 7;
   for(let d=1;d<=totalCells-(firstDay+daysInMonth);d++){
     cells += `<div class="cal-cell other-month"><div class="cal-date">${d}</div></div>`;
   }
 
   const dayNames = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+
+  const renderEventItem = (e, isPersonal) => {
+    const dt = new Date(e.event_date+'T12:00:00');
+    const day = dt.getDate();
+    const mon = dt.toLocaleDateString('pt-BR',{month:'short'}).replace('.','');
+    const deleteBtn = isPersonal
+      ? `<button class="btn btn-danger btn-sm" data-delete-personal-event="${e.id}" data-delete-personal-title="${e.title.replace(/"/g,'&quot;')}">🗑</button>`
+      : (isAdmin ? `<button class="btn btn-danger btn-sm" data-delete-event="${e.id}" data-delete-event-title="${e.title.replace(/"/g,'&quot;')}">🗑</button>` : '');
+    return `<div class="event-card" style="${isPersonal?'border-left-color:#6a3d9a':''}">
+      <div class="event-date-badge">
+        <div class="event-day">${day}</div>
+        <div class="event-month">${mon}</div>
+      </div>
+      <div style="flex:1">
+        <div class="event-title">${isPersonal?'🔒 ':''}${e.title}</div>
+        ${e.description ? `<div class="event-desc">${e.description}</div>` : ''}
+        ${e.event_time ? `<div class="event-time">🕐 ${e.event_time.slice(0,5)}</div>` : ''}
+      </div>
+      ${deleteBtn}
+    </div>`;
+  };
 
   return `
     <div class="cal-legend">
@@ -1860,100 +1881,24 @@ function renderCalendar(){
           <button class="btn btn-secondary" id="newPersonalEventBtn">${svgIcon('add')} Evento Pessoal</button>
         </div>
       </div>
-      ${upcoming.length===0 ? `<div class="empty-state"><div class="empty-icon">📅</div><div class="empty-title">Nenhum evento próximo</div><div class="empty-text">${isAdmin?'Clique em Novo Evento para adicionar um compromisso.':'Nenhum evento agendado ainda.'}</div></div>` :
-        upcoming.map(e=>{
-          const dt = new Date(e.event_date+'T12:00:00');
-          const day = dt.getDate();
-          const mon = dt.toLocaleDateString('pt-BR',{month:'short'}).replace('.','');
-          const isPersonal = !e.color || e.user_id === state.currentUser.id && !state.events.find(ev=>ev.id===e.id);
-          return `<div class="event-card" style="${isPersonal?'border-left-color:#6a3d9a':''}">
-            <div class="event-date-badge">
-              <div class="event-day">${day}</div>
-              <div class="event-month">${mon}</div>
-            </div>
-            <div style="flex:1">
-              <div class="event-title">${isPersonal?'🔒 ':''}${e.title}</div>
-              ${e.description ? `<div class="event-desc">${e.description}</div>` : ''}
-              ${e.event_time ? `<div class="event-time">🕐 ${e.event_time.slice(0,5)}</div>` : ''}
-            </div>
-            ${isAdmin && !isPersonal ? `<button class="btn btn-danger btn-sm" data-delete-event="${e.id}" data-delete-event-title="${e.title.replace(/"/g,'&quot;')}">🗑</button>` : ''}
-            ${isPersonal ? `<button class="btn btn-danger btn-sm" data-delete-personal-event="${e.id}" data-delete-personal-title="${e.title.replace(/"/g,'&quot;')}">🗑</button>` : ''}
-          </div>`;
-        }).join('')}
+      ${upcoming.length===0
+        ? `<div class="empty-state"><div class="empty-icon">📅</div><div class="empty-title">Nenhum evento próximo</div><div class="empty-text">Adicione eventos da empresa ou pessoais.</div></div>`
+        : upcoming.map(e => {
+            const isPersonal = allPersonal.some(p=>p.id===e.id);
+            return renderEventItem(e, isPersonal);
+          }).join('')}
     </div>
 
     <div class="section">
       <div class="section-header">
         <div class="section-title">Todos os Eventos</div>
-        <span class="section-count">${state.events.length} evento${state.events.length!==1?'s':''}</span>
+        <span class="section-count">${allCompany.length + allPersonal.length} evento${allCompany.length+allPersonal.length!==1?'s':''}</span>
       </div>
-      ${state.events.length===0 ? '' :
-        state.events.map(e=>{
-          const dt = new Date(e.event_date+'T12:00:00');
-          const day = dt.getDate();
-          const mon = dt.toLocaleDateString('pt-BR',{month:'short'}).replace('.','');
-          const isPersonal = !e.color || e.user_id === state.currentUser.id && !state.events.find(ev=>ev.id===e.id);
-          return `<div class="event-card" style="${isPersonal?'border-left-color:#6a3d9a':''}">
-            <div class="event-date-badge">
-              <div class="event-day">${day}</div>
-              <div class="event-month">${mon}</div>
-            </div>
-            <div style="flex:1">
-              <div class="event-title">${isPersonal?'🔒 ':''}${e.title}</div>
-              ${e.description ? `<div class="event-desc">${e.description}</div>` : ''}
-              ${e.event_time ? `<div class="event-time">🕐 ${e.event_time.slice(0,5)}</div>` : ''}
-            </div>
-            ${isAdmin && !isPersonal ? `<button class="btn btn-danger btn-sm" data-delete-event="${e.id}" data-delete-event-title="${e.title.replace(/"/g,'&quot;')}">🗑</button>` : ''}
-            ${isPersonal ? `<button class="btn btn-danger btn-sm" data-delete-personal-event="${e.id}" data-delete-personal-title="${e.title.replace(/"/g,'&quot;')}">🗑</button>` : ''}
-          </div>`;
-        }).join('')}
+      ${[...allCompany.map(e=>({...e,_personal:false})), ...allPersonal.map(e=>({...e,_personal:true}))]
+        .sort((a,b)=>a.event_date.localeCompare(b.event_date))
+        .map(e => renderEventItem(e, e._personal)).join('') || `<div class="empty-state"><div class="empty-icon">📅</div><div class="empty-title">Nenhum evento</div></div>`}
     </div>`;
 }
-
-function renderEventModal(){
-  const f = state.eventForm;
-  const colors = [{id:'accent',label:'Vermelho'},{id:'positive',label:'Verde'},{id:'blue',label:'Azul'},{id:'purple',label:'Roxo'}];
-  return `
-  <div class="modal-overlay" id="eventModalOverlay">
-    <div class="modal">
-      <div class="modal-header">
-        <div class="modal-title">Novo Evento</div>
-        <button class="modal-close" id="closeEventModal">×</button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label class="form-label">Título do Evento</label>
-          <input class="form-input" id="eventTitle" placeholder="Ex: Reunião de time, Prazo entrega..." value="${f.title}">
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Data</label>
-            <input class="form-input" id="eventDate" type="date" value="${f.event_date}">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Horário (opcional)</label>
-            <input class="form-input" id="eventTime" type="time" value="${f.event_time}">
-          </div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Descrição (opcional)</label>
-          <textarea class="form-textarea" id="eventDesc" placeholder="Detalhes do evento...">${f.description}</textarea>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Cor</label>
-          <div style="display:flex;gap:8px">
-            ${colors.map(c=>`<button class="type-btn ${f.color===c.id?'sel-'+(c.id==='accent'||c.id==='purple'?'constructive':'positive'):''}" data-eventcolor="${c.id}" style="flex:none;padding:8px 14px">${c.label}</button>`).join('')}
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary" id="cancelEventModal">Cancelar</button>
-        <button class="btn btn-primary" id="submitEvent" ${!f.title||!f.event_date?'disabled':''}>Adicionar →</button>
-      </div>
-    </div>
-  </div>`;
-}
-
 
 function renderPersonalEventModal(){
   const f = state.personalEventForm;
