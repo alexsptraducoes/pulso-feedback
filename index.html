@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pulso — SP Traduções</title>
+<title>FLOW - SP Traduções</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,400;0,600;0,700;1,300&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -451,14 +451,14 @@ const categories = ['Desempenho','Comunicação','Trabalho em Equipe','Lideranç
 
 // ── Persistent Session ──────────────────────────────────────────────────────
 function saveSession(user){
-  try{ localStorage.setItem('pulso_session', JSON.stringify({ id: user.id, email: user.email, password: user.password })); }catch(e){}
+  try{ localStorage.setItem('flow_session', JSON.stringify({ id: user.id, email: user.email, password: user.password })); }catch(e){}
 }
 function clearSession(){
-  try{ localStorage.removeItem('pulso_session'); }catch(e){}
+  try{ localStorage.removeItem('flow_session'); }catch(e){}
 }
 async function restoreSession(){
   try{
-    const saved = localStorage.getItem('pulso_session');
+    const saved = localStorage.getItem('flow_session');
     if(!saved) return false;
     const s = JSON.parse(saved);
     const { data } = await sb.from('users').select('*').eq('id', s.id).eq('password', s.password).single();
@@ -524,7 +524,7 @@ let state = {
   personalEvents: [],
   showPersonalEventModal: false,
   personalEventForm: { title:'', description:'', event_date:'', event_time:'' },
-  notifications: JSON.parse(localStorage.getItem('pulso_notifs')||'[]'),
+  notifications: JSON.parse(localStorage.getItem('flow_notifs')||'[]'),
   showNotifDropdown: false,
   showMsgModal: false,
   msgForm: { type:'Elogio', title:'', content:'' },
@@ -708,7 +708,7 @@ function startRealtime(){
         state.notifications = [payload.new, ...state.notifications].slice(0,50);
         render();
         if(Notification.permission==='granted'){
-          new Notification('🔔 Pulso — SP Traduções', { body: payload.new.text.replace(/<[^>]+>/g,''), tag:'pulso-'+payload.new.id });
+          new Notification('🔔 FLOW - SP Traduções', { body: payload.new.text.replace(/<[^>]+>/g,''), tag:'flow-'+payload.new.id });
         }
       })
     .subscribe();
@@ -763,10 +763,10 @@ function sendPushNotification(toUser, fromUser, feedbackTitle, feedbackType){
   if(Notification.permission !== 'granted') return;
   const icon = feedbackType === 'positive' ? '✦' : '△';
   const typeLabel = feedbackType === 'positive' ? 'Positivo' : 'Construtivo';
-  new Notification(`${icon} Novo Feedback ${typeLabel} — Pulso`, {
+  new Notification(`${icon} Novo Feedback ${typeLabel} — FLOW`, {
     body: `${fromUser.name} registrou um feedback para você: "${feedbackTitle}"`,
     icon: '/favicon.ico',
-    tag: 'pulso-feedback',
+    tag: 'flow-feedback',
   });
 }
 
@@ -787,7 +787,7 @@ async function submitAnnouncement(){
     addNotification('📋', `Novo aviso: <strong>${data.title}</strong>`, 'announcements');
     createNotifForAll('📋', `Novo aviso: ${data.title}`, 'announcements');
     if(Notification.permission==='granted'){
-      new Notification('📋 Novo Aviso — SP Traduções', { body: data.title, tag: 'pulso-announcement' });
+      new Notification('📋 Novo Aviso — SP Traduções', { body: data.title, tag: 'flow-announcement' });
     }
     showToast('✦ Aviso publicado com sucesso!');
   }
@@ -812,7 +812,7 @@ function addNotification(icon, text, view){
 
 function markAllRead(){
   state.notifications = state.notifications.map(n=>({...n, read:true}));
-  try{ localStorage.setItem('pulso_notifs', JSON.stringify(state.notifications)); }catch(e){}
+  try{ localStorage.setItem('flow_notifs', JSON.stringify(state.notifications)); }catch(e){}
   render();
 }
 
@@ -880,7 +880,7 @@ function startNotifPolling(){
       // Push browser notification for new ones
       data.forEach(n=>{
         if(Notification.permission==='granted'){
-          new Notification('🔔 Pulso — SP Traduções', { body: n.text.replace(/<[^>]+>/g,''), tag: 'pulso-'+n.id });
+          new Notification('🔔 FLOW - SP Traduções', { body: n.text.replace(/<[^>]+>/g,''), tag: 'flow-'+n.id });
         }
       });
     }
@@ -899,7 +899,7 @@ function startEventReminders(){
       if(e.event_date === todayStr && e.event_time && e.event_time.slice(0,5) === timeStr){
         addNotification('📅', `Lembrete: <strong>${e.title}</strong> agora!`, 'calendar');
         if(Notification.permission==='granted'){
-          new Notification('⏰ Lembrete — Pulso', { body: e.title, tag:'reminder-'+e.id });
+          new Notification('⏰ Lembrete — FLOW', { body: e.title, tag:'reminder-'+e.id });
         }
       }
     });
@@ -908,7 +908,7 @@ function startEventReminders(){
       if(e.event_date === todayStr && e.event_time && e.event_time.slice(0,5) === timeStr){
         addNotification('📅', `Evento da empresa: <strong>${e.title}</strong>`, 'calendar');
         if(Notification.permission==='granted'){
-          new Notification('⏰ Evento — Pulso', { body: e.title, tag:'evt-'+e.id });
+          new Notification('⏰ Evento — FLOW', { body: e.title, tag:'evt-'+e.id });
         }
       }
     });
@@ -1092,7 +1092,7 @@ function exportTimePDF(){
       <tr class="total"><td colspan="5">Total do Mês</td><td>${totalHours.toFixed(1)}h</td></tr>
     </tbody>
   </table>
-  <div class="footer">SP Traduções · Sistema Pulso · Relatório de Ponto gerado em ${new Date().toLocaleDateString('pt-BR')}</div>
+  <div class="footer">SP Traduções · Sistema FLOW · Relatório de Ponto gerado em ${new Date().toLocaleDateString('pt-BR')}</div>
   </body></html>`;
 
   const win = window.open('','_blank');
@@ -1308,7 +1308,7 @@ async function submitEvent(){
     addNotification('📅', `Novo evento: <strong>${data.title}</strong> · ${new Date(data.event_date+'T12:00:00').toLocaleDateString('pt-BR')}`, 'calendar');
     createNotifForAll('📅', `Novo evento: ${data.title}`, 'calendar');
     if(Notification.permission==='granted'){
-      new Notification('📅 Novo Evento — SP Traduções', { body: data.title + ' · ' + new Date(data.event_date+'T12:00:00').toLocaleDateString('pt-BR'), tag:'pulso-event' });
+      new Notification('📅 Novo Evento — SP Traduções', { body: data.title + ' · ' + new Date(data.event_date+'T12:00:00').toLocaleDateString('pt-BR'), tag:'flow-event' });
     }
     showToast('✦ Evento adicionado!');
   }
@@ -1356,7 +1356,7 @@ async function submitPoll(){
     addNotification('📊', `Nova enquete: <strong>${data.question}</strong>`, 'polls');
     createNotifForAll('📊', `Nova enquete: ${data.question}`, 'polls');
     if(Notification.permission==='granted'){
-      new Notification('📊 Nova Enquete — SP Traduções', { body: data.question, tag:'pulso-poll' });
+      new Notification('📊 Nova Enquete — SP Traduções', { body: data.question, tag:'flow-poll' });
     }
     showToast('✦ Enquete criada!');
   }
@@ -1571,7 +1571,7 @@ function exportPDF(){
       <div class="card-title">${fb.title}</div>
       <div class="card-content">${fb.content}</div>
     </div>`;}).join('')}
-  <div class="footer">SP Traduções · Sistema Pulso · Relatório gerado automaticamente</div>
+  <div class="footer">SP Traduções · Sistema FLOW · Relatório gerado automaticamente</div>
   </body></html>`;
   
   const win = window.open('','_blank');
@@ -1612,7 +1612,7 @@ async function submitReply(msgId){
     if(origMsg) createNotifForUsers([origMsg.from_id], '✉', 'Alex respondeu sua mensagem', 'messages');
     addNotification('✉', `<strong>Alex respondeu</strong> uma mensagem`, 'messages');
     if(Notification.permission==='granted'){
-      new Notification('✉ Alex respondeu sua mensagem — Pulso', { body: state.replyText, tag:'pulso-reply' });
+      new Notification('✉ Alex respondeu sua mensagem — FLOW', { body: state.replyText, tag:'flow-reply' });
     }
     showToast('Resposta enviada!');
   }
@@ -1631,7 +1631,7 @@ function renderLogin(){
   <div class="login-screen">
     <div class="login-card">
       <div class="logo-img"></div>
-      <div class="login-subtitle">Sistema de Feedback · Pulso</div>
+      <div class="login-subtitle">FLOW - SP Traduções</div>
       ${state.loginError ? `<div class="login-error">${state.loginError}</div>` : ''}
       <label class="login-label">E-mail</label>
       <input class="login-input" id="lemail" type="email" placeholder="seu@email.com" value="${state.loginEmail}">
@@ -1688,7 +1688,7 @@ function renderApp(){
     <nav class="sidebar">
       <div class="sidebar-brand">
         <div class="logo-img-sidebar"></div>
-        <div class="sidebar-tagline">Pulso · Feedback</div>
+        <div class="sidebar-tagline">FLOW · SP Traduções</div>
       </div>
       <div class="sidebar-user" style="display:flex;align-items:center;gap:12px">
         ${u.avatar_url ? `<img src="${u.avatar_url}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0" alt="${u.name}">` : `<div style="width:36px;height:36px;border-radius:50%;background:rgba(245,240,232,.12);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--paper);flex-shrink:0">${initials(u.name)}</div>`}
