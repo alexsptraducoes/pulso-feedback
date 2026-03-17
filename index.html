@@ -596,8 +596,22 @@ async function loadData(){
   state.notifications = dbNotifs || [];
   // Load time records
   const todayStr2 = new Date().toISOString().slice(0,10);
-  const { data: timeRecs } = await sb.from('time_records').select('*').eq('user_id', state.currentUser.id).order('date', { ascending: false }).limit(60);
+  // Load time records - admin/leader see all, employee sees own
+  let timeQuery = sb.from('time_records').select('*').order('date', { ascending: false });
+  if(state.currentUser.role === 'employee'){
+    timeQuery = timeQuery.eq('user_id', state.currentUser.id).limit(60);
+  } else if(state.currentUser.role === 'leader'){
+    // Leader sees their team
+    const teamIds = (state.users||[]).filter(u=>u.role==='employee'&&u.department===state.currentUser.department).map(u=>u.id);
+    teamIds.push(state.currentUser.id);
+    timeQuery = timeQuery.in('user_id', teamIds).limit(200);
+  } else {
+    // Admin sees all
+    timeQuery = timeQuery.limit(500);
+  }
+  const { data: timeRecs } = await timeQuery;
   state.timeRecords = timeRecs || [];
+  state.allUsersTimeRecords = state.currentUser.role !== 'employee' ? (timeRecs || []) : [];
   state.todayRecord = state.timeRecords.find(r=>r.date===todayStr2) || null;
   const { data: absencesData } = await sb.from('absences').select('*').order('date', { ascending: false });
   state.absences = absencesData || [];
