@@ -374,6 +374,13 @@ body{font-family:'DM Sans',sans-serif;background:#ede8dc;color:var(--ink);min-he
 .notif-text strong{font-weight:600}
 .notif-time{font-size:10px;color:var(--muted);margin-top:2px}
 .notif-empty{padding:32px;text-align:center;color:var(--muted);font-size:13px}
+
+/* PERSONAL EVENTS */
+.cal-event-pill.personal{background:#ede0ff;color:#6a3d9a}
+.cal-event-pill.company{background:#fde8e3;color:var(--accent)}
+.cal-legend{display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap}
+.cal-legend-item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.cal-legend-dot{width:10px;height:10px;border-radius:50%}
 </style>
 </head>
 <body>
@@ -424,6 +431,9 @@ let state = {
   eventForm: { title:'', description:'', event_date:'', event_time:'', color:'accent' },
   calMonth: new Date().getMonth(),
   calYear: new Date().getFullYear(),
+  personalEvents: [],
+  showPersonalEventModal: false,
+  personalEventForm: { title:'', description:'', event_date:'', event_time:'' },
   notifications: JSON.parse(localStorage.getItem('pulso_notifs')||'[]'),
   showNotifDropdown: false,
   showMsgModal: false,
@@ -489,6 +499,15 @@ async function loadData(){
   state.employeeOfMonth = eom || [];
   const { data: events } = await sb.from('events').select('*').order('event_date');
   state.events = events || [];
+  const { data: personalEvents } = await sb.from('personal_events').select('*').eq('user_id', state.currentUser.id).order('event_date');
+  state.personalEvents = personalEvents || [];
+  // Load notifications from DB
+  const { data: dbNotifs } = await sb.from('notifications').select('*').eq('user_id', state.currentUser.id).order('created_at', { ascending: false }).limit(50);
+  if(dbNotifs && dbNotifs.length > 0){
+    state.notifications = dbNotifs;
+  }
+  // Start event reminder checker
+  startEventReminders();
 }
 
 async function handleLogin(){
@@ -503,6 +522,7 @@ async function handleLogin(){
   state.loginLoading = false;
   await loadData();
   requestNotificationPermission();
+  startNotifPolling();
   render();
 }
 
@@ -541,7 +561,8 @@ async function submitFeedback(){
     const toUser = getUserById(f.toId);
     const fromUser = state.currentUser;
     sendPushNotification(toUser, fromUser, f.title, f.type);
-    addNotification(f.type==='positive'?'✦':'△', `<strong>${fromUser.name}</strong> registrou um feedback para ${toUser?toUser.name:'você'}: ${f.title}`, 'all');
+    addNotification(f.type==='positive'?'✦':'△', `<strong>${fromUser.name}</strong> registrou um feedback: ${f.title}`, 'dashboard');
+    if(toUser) createNotifForUsers([toUser.id], f.type==='positive'?'✦':'△', `${fromUser.name} registrou um feedback para você: ${f.title}`, 'dashboard');
     state.form = { toId:'', type:'positive', category:'Desempenho', title:'', content:'' };
     showToast('✦ Feedback registrado com sucesso!');
   }
@@ -599,6 +620,7 @@ async function submitAnnouncement(){
     state.annForm = { title:'', content:'', priority:'normal' };
     // Notify all users
     addNotification('📋', `Novo aviso: <strong>${data.title}</strong>`, 'announcements');
+    createNotifForAll('📋', `Novo aviso: ${data.title}`, 'announcements');
     if(Notification.permission==='granted'){
       new Notification('📋 Novo Aviso — SP Traduções', { body: data.title, tag: 'pulso-announcement' });
     }
@@ -619,9 +641,8 @@ async function deleteAnnouncement(id){
 
 
 function addNotification(icon, text, view){
-  const notif = { id: Date.now(), icon, text, view, time: new Date().toISOString(), read: false };
+  const notif = { id: Date.now(), icon, text, view, created_at: new Date().toISOString(), read: false };
   state.notifications = [notif, ...state.notifications].slice(0, 50);
-  try{ localStorage.setItem('pulso_notifs', JSON.stringify(state.notifications)); }catch(e){}
 }
 
 function markAllRead(){
@@ -630,14 +651,10 @@ function markAllRead(){
   render();
 }
 
-function clearNotifications(){
-  state.notifications = [];
-  try{ localStorage.setItem('pulso_notifs', JSON.stringify([])); }catch(e){}
-  render();
-}
+function clearNotifications(){ clearNotificationsDB(); }
 
 function timeAgo(iso){
-  const diff = Date.now() - new Date(iso).getTime();
+  const diff = Date.now() - new Date(iso||Date.now()).getTime();
   const m = Math.floor(diff/60000);
   const h = Math.floor(m/60);
   const d = Math.floor(h/24);
@@ -645,6 +662,112 @@ function timeAgo(iso){
   if(h>0) return h+'h atrás';
   if(m>0) return m+'min atrás';
   return 'agora';
+}
+
+
+// ── DB Notifications ─────────────────────────────────────────────────────────
+async function createNotifForUsers(userIds, icon, text, view){
+  if(!userIds || userIds.length === 0) return;
+  const inserts = userIds.map(uid=>({ user_id: uid, icon, text, view }));
+  await sb.from('notifications').insert(inserts);
+}
+
+async function createNotifForAll(icon, text, view){
+  const allUserIds = state.users.map(u=>u.id).filter(id=>id!==state.currentUser.id);
+  await createNotifForUsers(allUserIds, icon, text, view);
+}
+
+async function markNotifRead(id){
+  await sb.from('notifications').update({ read: true }).eq('id', id);
+  state.notifications = state.notifications.map(n=>n.id===id?{...n,read:true}:n);
+  render();
+}
+
+async function markAllReadDB(){
+  await sb.from('notifications').update({ read: true }).eq('user_id', state.currentUser.id);
+  state.notifications = state.notifications.map(n=>({...n,read:true}));
+  render();
+}
+
+async function clearNotificationsDB(){
+  await sb.from('notifications').delete().eq('user_id', state.currentUser.id);
+  state.notifications = [];
+  render();
+}
+
+// Poll for new notifications every 30 seconds
+function startNotifPolling(){
+  setInterval(async ()=>{
+    if(!state.currentUser) return;
+    const latest = state.notifications[0];
+    let query = sb.from('notifications').select('*').eq('user_id', state.currentUser.id).order('created_at', { ascending: false }).limit(20);
+    if(latest) query = query.gt('created_at', latest.created_at);
+    const { data } = await query;
+    if(data && data.length > 0){
+      state.notifications = [...data, ...state.notifications].slice(0,50);
+      render();
+      // Push browser notification for new ones
+      data.forEach(n=>{
+        if(Notification.permission==='granted'){
+          new Notification('🔔 Pulso — SP Traduções', { body: n.text.replace(/<[^>]+>/g,''), tag: 'pulso-'+n.id });
+        }
+      });
+    }
+  }, 30000);
+}
+
+// ── Event Reminders ──────────────────────────────────────────────────────────
+function startEventReminders(){
+  setInterval(()=>{
+    if(!state.currentUser) return;
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0,10);
+    const timeStr = now.toTimeString().slice(0,5);
+    // Check personal events
+    state.personalEvents.forEach(e=>{
+      if(e.event_date === todayStr && e.event_time && e.event_time.slice(0,5) === timeStr){
+        addNotification('📅', `Lembrete: <strong>${e.title}</strong> agora!`, 'calendar');
+        if(Notification.permission==='granted'){
+          new Notification('⏰ Lembrete — Pulso', { body: e.title, tag:'reminder-'+e.id });
+        }
+      }
+    });
+    // Check company events
+    state.events.forEach(e=>{
+      if(e.event_date === todayStr && e.event_time && e.event_time.slice(0,5) === timeStr){
+        addNotification('📅', `Evento da empresa: <strong>${e.title}</strong>`, 'calendar');
+        if(Notification.permission==='granted'){
+          new Notification('⏰ Evento — Pulso', { body: e.title, tag:'evt-'+e.id });
+        }
+      }
+    });
+  }, 60000); // check every minute
+}
+
+// ── Personal Events ──────────────────────────────────────────────────────────
+async function submitPersonalEvent(){
+  const f = state.personalEventForm;
+  if(!f.title || !f.event_date) return;
+  const { data, error } = await sb.from('personal_events').insert({
+    user_id: state.currentUser.id,
+    title: f.title, description: f.description,
+    event_date: f.event_date, event_time: f.event_time||null
+  }).select().single();
+  if(!error && data){
+    state.personalEvents = [...state.personalEvents, data].sort((a,b)=>a.event_date.localeCompare(b.event_date));
+    state.showPersonalEventModal = false;
+    state.personalEventForm = { title:'', description:'', event_date:'', event_time:'' };
+    showToast('✦ Evento pessoal adicionado!');
+  }
+}
+
+async function deletePersonalEvent(id){
+  const { error } = await sb.from('personal_events').delete().eq('id', id);
+  if(!error){
+    state.personalEvents = state.personalEvents.filter(e=>e.id!==id);
+    state.confirm = null;
+    showToast('Evento excluído.');
+  }
 }
 
 async function uploadAvatar(file){
@@ -706,6 +829,7 @@ async function submitEvent(){
     state.showEventModal = false;
     state.eventForm = { title:'', description:'', event_date:'', event_time:'', color:'accent' };
     addNotification('📅', `Novo evento: <strong>${data.title}</strong> · ${new Date(data.event_date+'T12:00:00').toLocaleDateString('pt-BR')}`, 'calendar');
+    createNotifForAll('📅', `Novo evento: ${data.title}`, 'calendar');
     if(Notification.permission==='granted'){
       new Notification('📅 Novo Evento — SP Traduções', { body: data.title + ' · ' + new Date(data.event_date+'T12:00:00').toLocaleDateString('pt-BR'), tag:'pulso-event' });
     }
@@ -734,6 +858,7 @@ async function submitPoll(){
     state.showPollModal = false;
     state.pollForm = { question:'', options:['',''] };
     addNotification('📊', `Nova enquete: <strong>${data.question}</strong>`, 'polls');
+    createNotifForAll('📊', `Nova enquete: ${data.question}`, 'polls');
     if(Notification.permission==='granted'){
       new Notification('📊 Nova Enquete — SP Traduções', { body: data.question, tag:'pulso-poll' });
     }
@@ -870,6 +995,13 @@ function exportPDF(){
 .notif-text strong{font-weight:600}
 .notif-time{font-size:10px;color:var(--muted);margin-top:2px}
 .notif-empty{padding:32px;text-align:center;color:var(--muted);font-size:13px}
+
+/* PERSONAL EVENTS */
+.cal-event-pill.personal{background:#ede0ff;color:#6a3d9a}
+.cal-event-pill.company{background:#fde8e3;color:var(--accent)}
+.cal-legend{display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap}
+.cal-legend-item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.cal-legend-dot{width:10px;height:10px;border-radius:50%}
 </style></head><body>
   <h1>SP Traduções · Relatório de Feedback</h1>
   <p style="color:#7a7166">${monthName} · Gerado em ${now.toLocaleDateString('pt-BR')}</p>
@@ -912,6 +1044,9 @@ async function submitMessage(){
     state.messages = [data, ...state.messages];
     state.showMsgModal = false;
     state.msgForm = { type:'Elogio', title:'', content:'' };
+    // Notify all admins
+    const adminIds = state.users.filter(u=>u.role==='admin').map(u=>u.id);
+    createNotifForUsers(adminIds, '✉', `Nova mensagem de ${state.currentUser.name}: ${data.title}`, 'messages');
     showToast('✦ Mensagem enviada com sucesso!');
   }
 }
@@ -925,7 +1060,10 @@ async function submitReply(msgId){
     state.messages = state.messages.map(m => m.id===msgId ? data : m);
     state.replyingId = null;
     state.replyText = '';
-    addNotification('✉', `<strong>CEO respondeu</strong> sua mensagem`, 'messages');
+    // notify the message sender
+    const origMsg = state.messages.find(m=>m.id===msgId);
+    if(origMsg) createNotifForUsers([origMsg.from_id], '✉', 'O CEO respondeu sua mensagem', 'messages');
+    addNotification('✉', `<strong>CEO respondeu</strong> uma mensagem`, 'messages');
     if(Notification.permission==='granted'){
       new Notification('✉ O CEO respondeu sua mensagem — Pulso', { body: state.replyText, tag:'pulso-reply' });
     }
@@ -1072,6 +1210,7 @@ function renderApp(){
     ${state.showEvalModal ? renderEvalModal() : ''}
     ${state.showEomModal ? renderEomModal() : ''}
     ${state.showEventModal ? renderEventModal() : ''}
+    ${state.showPersonalEventModal ? renderPersonalEventModal() : ''}
     ${state.confirm ? renderConfirm() : ''}
     ${state.toast ? `<div class="toast">${state.toast}</div>` : ''}
   </div>`;
@@ -1669,7 +1808,7 @@ function renderCalendar(){
   const todayStr = today.toISOString().slice(0,10);
 
   // Upcoming events list
-  const upcoming = state.events.filter(e=>e.event_date >= todayStr).slice(0,5);
+  const upcoming = [...state.events.filter(e=>e.event_date >= todayStr), ...state.personalEvents.filter(e=>e.event_date >= todayStr)].sort((a,b)=>a.event_date.localeCompare(b.event_date)).slice(0,8);
 
   let cells = '';
   // prev month days
@@ -1683,7 +1822,8 @@ function renderCalendar(){
     const dayEvents = state.events.filter(e=>e.event_date===dateStr);
     cells += `<div class="cal-cell ${isToday?'today':''}">
       <div class="cal-date">${d}</div>
-      ${dayEvents.map(e=>`<div class="cal-event-pill ${e.color||'accent'}" title="${e.title}">${e.title}</div>`).join('')}
+      ${dayEvents.map(e=>`<div class="cal-event-pill company" title="${e.title}">${e.title}</div>`).join('')}
+      ${dayPersonal.map(e=>`<div class="cal-event-pill personal" title="${e.title}">🔒 ${e.title}</div>`).join('')}
     </div>`;
   }
   // next month days
@@ -1695,6 +1835,10 @@ function renderCalendar(){
   const dayNames = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 
   return `
+    <div class="cal-legend">
+      <div class="cal-legend-item"><div class="cal-legend-dot" style="background:#b5451b"></div> Eventos da empresa</div>
+      <div class="cal-legend-item"><div class="cal-legend-dot" style="background:#6a3d9a"></div> Meus eventos pessoais</div>
+    </div>
     <div class="cal-wrap">
       <div class="cal-header">
         <button class="cal-nav" id="calPrev">← Anterior</button>
@@ -1710,24 +1854,29 @@ function renderCalendar(){
     <div class="section">
       <div class="section-header">
         <div class="section-title">Próximos Eventos</div>
-        ${isAdmin ? `<button class="btn btn-primary" id="newEventBtn">${svgIcon('add')} Novo Evento</button>` : ''}
+        <div style="display:flex;gap:8px">
+          ${isAdmin ? `<button class="btn btn-primary" id="newEventBtn">${svgIcon('add')} Novo Evento</button>` : ''}
+          <button class="btn btn-secondary" id="newPersonalEventBtn">${svgIcon('add')} Evento Pessoal</button>
+        </div>
       </div>
       ${upcoming.length===0 ? `<div class="empty-state"><div class="empty-icon">📅</div><div class="empty-title">Nenhum evento próximo</div><div class="empty-text">${isAdmin?'Clique em Novo Evento para adicionar um compromisso.':'Nenhum evento agendado ainda.'}</div></div>` :
         upcoming.map(e=>{
           const dt = new Date(e.event_date+'T12:00:00');
           const day = dt.getDate();
           const mon = dt.toLocaleDateString('pt-BR',{month:'short'}).replace('.','');
-          return `<div class="event-card">
+          const isPersonal = !e.color || e.user_id === state.currentUser.id && !state.events.find(ev=>ev.id===e.id);
+          return `<div class="event-card" style="${isPersonal?'border-left-color:#6a3d9a':''}">
             <div class="event-date-badge">
               <div class="event-day">${day}</div>
               <div class="event-month">${mon}</div>
             </div>
             <div style="flex:1">
-              <div class="event-title">${e.title}</div>
+              <div class="event-title">${isPersonal?'🔒 ':''}${e.title}</div>
               ${e.description ? `<div class="event-desc">${e.description}</div>` : ''}
               ${e.event_time ? `<div class="event-time">🕐 ${e.event_time.slice(0,5)}</div>` : ''}
             </div>
-            ${isAdmin ? `<button class="btn btn-danger btn-sm" data-delete-event="${e.id}" data-delete-event-title="${e.title.replace(/"/g,'&quot;')}">🗑</button>` : ''}
+            ${isAdmin && !isPersonal ? `<button class="btn btn-danger btn-sm" data-delete-event="${e.id}" data-delete-event-title="${e.title.replace(/"/g,'&quot;')}">🗑</button>` : ''}
+            ${isPersonal ? `<button class="btn btn-danger btn-sm" data-delete-personal-event="${e.id}" data-delete-personal-title="${e.title.replace(/"/g,'&quot;')}">🗑</button>` : ''}
           </div>`;
         }).join('')}
     </div>
@@ -1742,17 +1891,19 @@ function renderCalendar(){
           const dt = new Date(e.event_date+'T12:00:00');
           const day = dt.getDate();
           const mon = dt.toLocaleDateString('pt-BR',{month:'short'}).replace('.','');
-          return `<div class="event-card">
+          const isPersonal = !e.color || e.user_id === state.currentUser.id && !state.events.find(ev=>ev.id===e.id);
+          return `<div class="event-card" style="${isPersonal?'border-left-color:#6a3d9a':''}">
             <div class="event-date-badge">
               <div class="event-day">${day}</div>
               <div class="event-month">${mon}</div>
             </div>
             <div style="flex:1">
-              <div class="event-title">${e.title}</div>
+              <div class="event-title">${isPersonal?'🔒 ':''}${e.title}</div>
               ${e.description ? `<div class="event-desc">${e.description}</div>` : ''}
               ${e.event_time ? `<div class="event-time">🕐 ${e.event_time.slice(0,5)}</div>` : ''}
             </div>
-            ${isAdmin ? `<button class="btn btn-danger btn-sm" data-delete-event="${e.id}" data-delete-event-title="${e.title.replace(/"/g,'&quot;')}">🗑</button>` : ''}
+            ${isAdmin && !isPersonal ? `<button class="btn btn-danger btn-sm" data-delete-event="${e.id}" data-delete-event-title="${e.title.replace(/"/g,'&quot;')}">🗑</button>` : ''}
+            ${isPersonal ? `<button class="btn btn-danger btn-sm" data-delete-personal-event="${e.id}" data-delete-personal-title="${e.title.replace(/"/g,'&quot;')}">🗑</button>` : ''}
           </div>`;
         }).join('')}
     </div>`;
@@ -1797,6 +1948,47 @@ function renderEventModal(){
       <div class="modal-footer">
         <button class="btn btn-secondary" id="cancelEventModal">Cancelar</button>
         <button class="btn btn-primary" id="submitEvent" ${!f.title||!f.event_date?'disabled':''}>Adicionar →</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+
+function renderPersonalEventModal(){
+  const f = state.personalEventForm;
+  return `
+  <div class="modal-overlay" id="personalEventModalOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">🔒 Evento Pessoal</div>
+        <button class="modal-close" id="closePersonalEventModal">×</button>
+      </div>
+      <div class="modal-body">
+        <div style="font-size:12px;color:var(--muted);background:var(--cream);padding:10px 14px;border-radius:var(--radius-sm);margin-bottom:16px">
+          Eventos pessoais são visíveis apenas para você.
+        </div>
+        <div class="form-group">
+          <label class="form-label">Título</label>
+          <input class="form-input" id="personalEventTitle" placeholder="Ex: Consulta médica, Reunião..." value="${f.title}">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Data</label>
+            <input class="form-input" id="personalEventDate" type="date" value="${f.event_date}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Horário (opcional)</label>
+            <input class="form-input" id="personalEventTime" type="time" value="${f.event_time}">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Descrição (opcional)</label>
+          <textarea class="form-textarea" id="personalEventDesc" placeholder="Anotações...">${f.description}</textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancelPersonalEventModal">Cancelar</button>
+        <button class="btn btn-primary" id="submitPersonalEvent" ${!f.title||!f.event_date?'disabled':''}>Salvar →</button>
       </div>
     </div>
   </div>`;
@@ -2120,6 +2312,7 @@ function bindApp(){
       else if(state.confirm.type==='message') deleteMessage(state.confirm.id);
       else if(state.confirm.type==='poll') deletePoll(state.confirm.id);
       else if(state.confirm.type==='event') deleteEvent(state.confirm.id);
+      else if(state.confirm.type==='personal_event') deletePersonalEvent(state.confirm.id);
       else deleteUser(state.confirm.id);
     };
   }
@@ -2170,6 +2363,30 @@ function bindApp(){
   const avatarInput = document.getElementById('avatarInput');
   if(avatarInput) avatarInput.onchange = e=>{ if(e.target.files[0]) uploadAvatar(e.target.files[0]); };
 
+
+
+  // Personal events
+  const newPersonalEventBtn = document.getElementById('newPersonalEventBtn');
+  if(newPersonalEventBtn) newPersonalEventBtn.onclick = ()=>{ state.showPersonalEventModal=true; render(); };
+
+  document.querySelectorAll('[data-delete-personal-event]').forEach(el=>{
+    el.onclick = ()=>{ state.confirm = { type:'personal_event', id:el.dataset.deletePersonalEvent, name:el.dataset.deletePersonalTitle }; render(); };
+  });
+
+  if(state.showPersonalEventModal){
+    document.getElementById('closePersonalEventModal').onclick = ()=>{ state.showPersonalEventModal=false; render(); };
+    document.getElementById('cancelPersonalEventModal').onclick = ()=>{ state.showPersonalEventModal=false; render(); };
+    document.getElementById('personalEventModalOverlay').onclick = e=>{ if(e.target.id==='personalEventModalOverlay'){ state.showPersonalEventModal=false; render(); }};
+    const peTitle = document.getElementById('personalEventTitle');
+    if(peTitle) peTitle.oninput = e=>{ state.personalEventForm.title=e.target.value; document.getElementById('submitPersonalEvent').disabled=!state.personalEventForm.title||!state.personalEventForm.event_date; };
+    const peDate = document.getElementById('personalEventDate');
+    if(peDate) peDate.onchange = e=>{ state.personalEventForm.event_date=e.target.value; document.getElementById('submitPersonalEvent').disabled=!state.personalEventForm.title||!state.personalEventForm.event_date; };
+    const peTime = document.getElementById('personalEventTime');
+    if(peTime) peTime.onchange = e=>{ state.personalEventForm.event_time=e.target.value; };
+    const peDesc = document.getElementById('personalEventDesc');
+    if(peDesc) peDesc.oninput = e=>{ state.personalEventForm.description=e.target.value; };
+    document.getElementById('submitPersonalEvent').onclick = submitPersonalEvent;
+  }
 
   // Calendar
   const calPrev = document.getElementById('calPrev');
