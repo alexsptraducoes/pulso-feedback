@@ -381,6 +381,44 @@ body{font-family:'DM Sans',sans-serif;background:#ede8dc;color:var(--ink);min-he
 .cal-legend{display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap}
 .cal-legend-item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
 .cal-legend-dot{width:10px;height:10px;border-radius:50%}
+
+/* TIME TRACKING */
+.punch-card{background:linear-gradient(135deg,#0a0060 0%,#13029e 100%);border-radius:var(--radius-lg);padding:32px;margin-bottom:24px;color:var(--paper)}
+.punch-time{font-family:'Fraunces',serif;font-size:52px;font-weight:700;color:white;line-height:1}
+.punch-date{font-size:13px;color:rgba(255,255,255,.5);margin-top:4px;margin-bottom:24px}
+.punch-buttons{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.punch-btn{padding:16px;border-radius:var(--radius);border:none;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;flex-direction:column;align-items:center;gap:6px}
+.punch-btn:disabled{opacity:.4;cursor:not-allowed}
+.punch-btn-icon{font-size:22px}
+.punch-btn.entry{background:#d8f3dc;color:#2d6a4f}
+.punch-btn.lunch-out{background:#fff3cd;color:#856404}
+.punch-btn.lunch-in{background:#d0e8ff;color:#0a58ca}
+.punch-btn.exit{background:#fde8e3;color:#c44b2b}
+.punch-btn.done{background:var(--cream);color:var(--muted);cursor:not-allowed}
+.punch-status{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+.punch-status-item{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:14px;text-align:center}
+.punch-status-time{font-family:'Fraunces',serif;font-size:18px;font-weight:700;color:var(--ink)}
+.punch-status-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:4px}
+.time-table{width:100%;background:var(--white);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+.time-table table{width:100%;border-collapse:collapse}
+.time-table th{padding:12px 16px;text-align:left;font-size:10px;font-weight:700;color:white;text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid var(--border);background:#11008d}
+.time-table td{padding:12px 16px;font-size:13px;border-bottom:1px solid var(--cream);color:var(--ink)}
+.time-table tr:last-child td{border-bottom:none}
+.time-table tr:hover td{background:var(--cream)}
+.hours-badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
+.hours-ok{background:var(--positive-bg);color:var(--positive)}
+.hours-low{background:var(--constructive-bg);color:var(--constructive)}
+.hours-partial{background:#fff3cd;color:#856404}
+.late-badge{background:#fde8e3;color:#c44b2b;display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700}
+
+/* BANK OF HOURS */
+.boh-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px}
+.boh-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);text-align:center}
+.boh-number{font-family:'Fraunces',serif;font-size:32px;font-weight:700}
+.boh-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:6px}
+.boh-positive{color:var(--positive)}
+.boh-negative{color:var(--constructive)}
+.boh-neutral{color:#11008d}
 </style>
 </head>
 <body>
@@ -393,6 +431,9 @@ const sb = createClient(
 );
 
 const TEAMS = ['Comercial','Financeiro','Projetos','Finalização'];
+const WORK_START = 9;
+const WORK_HOURS = 8;
+const LUNCH_HOURS = 1;
 const categories = ['Desempenho','Comunicação','Trabalho em Equipe','Liderança','Resultados','Inovação','Atendimento','Comportamento'];
 
 // ── Persistent Session ──────────────────────────────────────────────────────
@@ -449,6 +490,11 @@ let state = {
   showPasswordModal: false,
   passwordForm: { current:'', new1:'', new2:'' },
   passwordError: '',
+  timeRecords: [],
+  todayRecord: null,
+  clockTime: new Date(),
+  timeViewMonth: new Date().getMonth(),
+  timeViewYear: new Date().getFullYear(),
   events: [],
   showEventModal: false,
   eventForm: { title:'', description:'', event_date:'', event_time:'', color:'accent' },
@@ -527,8 +573,15 @@ async function loadData(){
   // Load only unread notifications from DB
   const { data: dbNotifs } = await sb.from('notifications').select('*').eq('user_id', state.currentUser.id).eq('read', false).order('created_at', { ascending: false }).limit(50);
   state.notifications = dbNotifs || [];
+  // Load time records
+  const todayStr2 = new Date().toISOString().slice(0,10);
+  const { data: timeRecs } = await sb.from('time_records').select('*').eq('user_id', state.currentUser.id).order('date', { ascending: false }).limit(60);
+  state.timeRecords = timeRecs || [];
+  state.todayRecord = state.timeRecords.find(r=>r.date===todayStr2) || null;
   // Start event reminder checker
   startEventReminders();
+  // Start clock
+  setInterval(()=>{ state.clockTime = new Date(); if(document.getElementById('liveClock')) document.getElementById('liveClock').textContent = state.clockTime.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}); }, 1000);
 }
 
 async function handleLogin(){
@@ -852,6 +905,152 @@ async function submitChangePassword(){
   }
 }
 
+
+async function punch(type){
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0,10);
+  const field = { entry:'entry_time', 'lunch-out':'lunch_out', 'lunch-in':'lunch_in', exit:'exit_time' }[type];
+
+  if(state.todayRecord){
+    // Update existing record
+    const update = { [field]: now.toISOString() };
+    // Calculate total hours if exiting
+    if(type === 'exit' && state.todayRecord.entry_time){
+      const entry = new Date(state.todayRecord.entry_time);
+      const lunchOut = state.todayRecord.lunch_out ? new Date(state.todayRecord.lunch_out) : null;
+      const lunchIn = state.todayRecord.lunch_in ? new Date(state.todayRecord.lunch_in) : null;
+      let total = (now - entry) / 3600000;
+      if(lunchOut && lunchIn) total -= (lunchIn - lunchOut) / 3600000;
+      else if(lunchOut) total -= (now - lunchOut) / 3600000;
+      update.total_hours = Math.round(total * 100) / 100;
+    }
+    const { data, error } = await sb.from('time_records').update(update).eq('id', state.todayRecord.id).select().single();
+    if(!error){
+      state.todayRecord = data;
+      state.timeRecords = state.timeRecords.map(r=>r.id===data.id?data:r);
+      showToast(`✦ ${punchLabel(type)} registrado às ${now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}`);
+      render();
+    }
+  } else {
+    // Create new record
+    const { data, error } = await sb.from('time_records').insert({
+      user_id: state.currentUser.id, date: todayStr, [field]: now.toISOString()
+    }).select().single();
+    if(!error){
+      state.todayRecord = data;
+      state.timeRecords = [data, ...state.timeRecords];
+      showToast(`✦ ${punchLabel(type)} registrado às ${now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}`);
+      render();
+    }
+  }
+}
+
+function punchLabel(type){
+  return { entry:'Entrada', 'lunch-out':'Saída para almoço', 'lunch-in':'Retorno do almoço', exit:'Saída' }[type];
+}
+
+function formatTime(iso){
+  if(!iso) return '—';
+  return new Date(iso).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+}
+
+function calcHours(rec){
+  if(!rec || !rec.entry_time || !rec.exit_time) return null;
+  const entry = new Date(rec.entry_time);
+  const exit = new Date(rec.exit_time);
+  const lunchOut = rec.lunch_out ? new Date(rec.lunch_out) : null;
+  const lunchIn = rec.lunch_in ? new Date(rec.lunch_in) : null;
+  let total = (exit - entry) / 3600000;
+  if(lunchOut && lunchIn) total -= (lunchIn - lunchOut) / 3600000;
+  else total -= LUNCH_HOURS;
+  return Math.max(0, Math.round(total * 100) / 100);
+}
+
+function calcBalance(recs){
+  const completed = recs.filter(r=>r.entry_time && r.exit_time);
+  const totalWorked = completed.reduce((sum,r)=>sum+(calcHours(r)||0),0);
+  const totalExpected = completed.length * WORK_HOURS;
+  const balance = totalWorked - totalExpected;
+  const lateDays = recs.filter(r=>{
+    if(!r.entry_time) return false;
+    const d = new Date(r.entry_time);
+    return d.getHours() > WORK_START || (d.getHours()===WORK_START && d.getMinutes()>5);
+  }).length;
+  const overtimeDays = completed.filter(r=>(calcHours(r)||0)>WORK_HOURS).length;
+  return { totalWorked:Math.round(totalWorked*100)/100, totalExpected, balance:Math.round(balance*100)/100, lateDays, overtimeDays, days:completed.length };
+}
+
+function formatBalance(hours){
+  const abs = Math.abs(hours);
+  const h = Math.floor(abs);
+  const m = Math.round((abs-h)*60);
+  const sign = hours>=0?'+':'-';
+  return sign+h+'h'+(m>0?m+'min':'');
+}
+
+function exportTimePDF(){
+  const u = state.currentUser;
+  const months = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const m = state.timeViewMonth;
+  const y = state.timeViewYear;
+  const recs = state.timeRecords.filter(r=>{
+    const d = new Date(r.date+'T12:00:00');
+    return d.getMonth()===m && d.getFullYear()===y;
+  });
+  const totalHours = recs.reduce((sum,r)=>sum+(r.total_hours||calcHours(r)||0),0);
+  const bal = calcBalance(recs);
+
+  let html2 = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <style>
+    body{font-family:Arial,sans-serif;color:#0d0d0d;padding:40px;max-width:900px;margin:0 auto}
+    h1{font-size:24px;color:#11008d;border-bottom:2px solid #11008d;padding-bottom:12px}
+    h2{font-size:16px;color:#0d0d0d;margin-top:8px}
+    table{width:100%;border-collapse:collapse;margin-top:24px}
+    th{background:#11008d;color:white;padding:10px 14px;text-align:left;font-size:12px}
+    td{padding:10px 14px;font-size:13px;border-bottom:1px solid #e0d9cc}
+    tr:hover td{background:#f5f0e8}
+    .total{background:#f5f0e8;font-weight:700}
+    .footer{margin-top:40px;font-size:11px;color:#7a7166;text-align:center;border-top:1px solid #cec8b8;padding-top:16px}
+  
+/* BANK OF HOURS */
+.boh-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px}
+.boh-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);text-align:center}
+.boh-number{font-family:'Fraunces',serif;font-size:32px;font-weight:700}
+.boh-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:6px}
+.boh-positive{color:var(--positive)}
+.boh-negative{color:var(--constructive)}
+.boh-neutral{color:#11008d}
+</style></head><body>
+  <h1>SP Traduções · Relatório de Ponto</h1>
+  <h2>${u.name} · ${months[m]} ${y}</h2>
+  <p style="color:#7a7166;font-size:13px">Total: <strong>${totalHours.toFixed(1)}h</strong> · Esperado: <strong>${bal.totalExpected}h</strong> · Banco: <strong>${formatBalance(bal.balance)}</strong> · Atrasos: <strong>${bal.lateDays} dias</strong></p>
+  <table>
+    <thead><tr><th>Data</th><th>Entrada</th><th>Saída Almoço</th><th>Retorno</th><th>Saída</th><th>Total</th></tr></thead>
+    <tbody>
+      ${recs.map(r=>{
+        const dt = new Date(r.date+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'});
+        const h = r.total_hours || calcHours(r);
+        return `<tr>
+          <td>${dt}</td>
+          <td>${formatTime(r.entry_time)}</td>
+          <td>${formatTime(r.lunch_out)}</td>
+          <td>${formatTime(r.lunch_in)}</td>
+          <td>${formatTime(r.exit_time)}</td>
+          <td><strong>${h?h.toFixed(1)+'h':'—'}</strong></td>
+        </tr>`;
+      }).join('')}
+      <tr class="total"><td colspan="5">Total do Mês</td><td>${totalHours.toFixed(1)}h</td></tr>
+    </tbody>
+  </table>
+  <div class="footer">SP Traduções · Sistema Pulso · Relatório de Ponto gerado em ${new Date().toLocaleDateString('pt-BR')}</div>
+  </body></html>`;
+
+  const win = window.open('','_blank');
+  win.document.write(html2);
+  win.document.close();
+  setTimeout(()=>win.print(), 500);
+}
+
 async function submitBirthday(){
   const f = state.birthdayForm;
   if(!f.userId) return;
@@ -1141,6 +1340,44 @@ function exportPDF(){
 .cal-legend{display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap}
 .cal-legend-item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
 .cal-legend-dot{width:10px;height:10px;border-radius:50%}
+
+/* TIME TRACKING */
+.punch-card{background:linear-gradient(135deg,#0a0060 0%,#13029e 100%);border-radius:var(--radius-lg);padding:32px;margin-bottom:24px;color:var(--paper)}
+.punch-time{font-family:'Fraunces',serif;font-size:52px;font-weight:700;color:white;line-height:1}
+.punch-date{font-size:13px;color:rgba(255,255,255,.5);margin-top:4px;margin-bottom:24px}
+.punch-buttons{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.punch-btn{padding:16px;border-radius:var(--radius);border:none;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;flex-direction:column;align-items:center;gap:6px}
+.punch-btn:disabled{opacity:.4;cursor:not-allowed}
+.punch-btn-icon{font-size:22px}
+.punch-btn.entry{background:#d8f3dc;color:#2d6a4f}
+.punch-btn.lunch-out{background:#fff3cd;color:#856404}
+.punch-btn.lunch-in{background:#d0e8ff;color:#0a58ca}
+.punch-btn.exit{background:#fde8e3;color:#c44b2b}
+.punch-btn.done{background:var(--cream);color:var(--muted);cursor:not-allowed}
+.punch-status{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+.punch-status-item{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:14px;text-align:center}
+.punch-status-time{font-family:'Fraunces',serif;font-size:18px;font-weight:700;color:var(--ink)}
+.punch-status-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:4px}
+.time-table{width:100%;background:var(--white);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+.time-table table{width:100%;border-collapse:collapse}
+.time-table th{padding:12px 16px;text-align:left;font-size:10px;font-weight:700;color:white;text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid var(--border);background:#11008d}
+.time-table td{padding:12px 16px;font-size:13px;border-bottom:1px solid var(--cream);color:var(--ink)}
+.time-table tr:last-child td{border-bottom:none}
+.time-table tr:hover td{background:var(--cream)}
+.hours-badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
+.hours-ok{background:var(--positive-bg);color:var(--positive)}
+.hours-low{background:var(--constructive-bg);color:var(--constructive)}
+.hours-partial{background:#fff3cd;color:#856404}
+.late-badge{background:#fde8e3;color:#c44b2b;display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700}
+
+/* BANK OF HOURS */
+.boh-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px}
+.boh-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);text-align:center}
+.boh-number{font-family:'Fraunces',serif;font-size:32px;font-weight:700}
+.boh-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:6px}
+.boh-positive{color:var(--positive)}
+.boh-negative{color:var(--constructive)}
+.boh-neutral{color:#11008d}
 </style></head><body>
   <h1>SP Traduções · Relatório de Feedback</h1>
   <p style="color:#7a7166">${monthName} · Gerado em ${now.toLocaleDateString('pt-BR')}</p>
@@ -1263,6 +1500,7 @@ function renderApp(){
         ...(u.role==='admin' ? [{id:'users',label:'Usuários',icon:'usr'}] : []),
         {id:'messages',label:'Mensagens',icon:'msg'},
         {id:'profile',label:'Meu Perfil',icon:'usr'},
+        {id:'timeclock',label:'Ponto Eletrônico',icon:'clock'},
         {id:'calendar',label:'Calendário',icon:'cal'},
         {id:'announcements',label:'Quadro de Avisos',icon:'ann'},
         {id:'polls',label:'Enquetes',icon:'poll'},
@@ -1271,7 +1509,7 @@ function renderApp(){
       ];
 
   const roleLabel = u.role==='admin' ? 'Admin' : u.role==='leader' ? 'Líder' : 'Colaborador';
-  const viewTitles = {dashboard: u.role==='employee' ? 'Meus Feedbacks' : 'Visão Geral', all:'Feedbacks', people: u.role==='admin' ? 'Todos os Times' : 'Meu Time', users:'Gerenciar Usuários', messages:'Mensagens', profile:'Meu Perfil', calendar:'Calendário', announcements:'Quadro de Avisos', polls:'Enquetes', evals:'Avaliações', eom:'Destaque do Mês'};
+  const viewTitles = {dashboard: u.role==='employee' ? 'Meus Feedbacks' : 'Visão Geral', all:'Feedbacks', people: u.role==='admin' ? 'Todos os Times' : 'Meu Time', users:'Gerenciar Usuários', messages:'Mensagens', profile:'Meu Perfil', timeclock:'Ponto Eletrônico', calendar:'Calendário', announcements:'Quadro de Avisos', polls:'Enquetes', evals:'Avaliações', eom:'Destaque do Mês'};
 
   return `
   <div class="app">
@@ -1331,6 +1569,7 @@ function renderApp(){
           ${canGive ? `<button class="btn btn-primary" id="newFbBtn">${svgIcon('add')} Novo Feedback</button>` : ''}
           ${state.view==='messages' && u.role!=='admin' ? `<button class="btn btn-primary" id="newMsgBtn">${svgIcon('add')} Nova Mensagem</button>` : ''}
           ${u.role==='admin' && state.view==='announcements' ? `<button class="btn btn-primary" id="newAnnBtn">${svgIcon('add')} Novo Aviso</button>` : ''}
+          ${(u.role==='admin'||u.role==='leader') && state.view==='timeclock' ? `<button class="btn btn-secondary" id="exportTimeBtn">📄 Exportar PDF</button>` : ''}
           ${u.role==='admin' && state.view==='calendar' ? `<button class="btn btn-primary" id="newEventBtn">${svgIcon('add')} Novo Evento</button>` : ''}
           ${u.role==='admin' && state.view==='polls' ? `<button class="btn btn-primary" id="newPollBtn">${svgIcon('add')} Nova Enquete</button>` : ''}
           ${(u.role==='admin'||u.role==='leader') && state.view==='evals' ? `<button class="btn btn-primary" id="newEvalBtn">${svgIcon('add')} Nova Avaliação</button>` : ''}
@@ -1366,6 +1605,7 @@ function renderView(){
   if(state.view==='users') return renderUsers();
   if(state.view==='messages') return renderMessages();
   if(state.view==='profile') return renderProfile();
+  if(state.view==='timeclock') return renderTimeClock();
   if(state.view==='calendar') return renderCalendar();
   if(state.view==='announcements') return renderAnnouncements();
   if(state.view==='polls') return renderPolls();
@@ -1947,6 +2187,162 @@ function renderProfile(){
     </div>`;
 }
 
+
+
+function renderTimeClock(){
+  const u = state.currentUser;
+  const isAdmin = u.role==='admin';
+  const isLeader = u.role==='leader';
+  const r = state.todayRecord;
+  const now = state.clockTime;
+  const months = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+  // Determine next punch
+  const nextPunch = !r || !r.entry_time ? 'entry'
+    : !r.lunch_out ? 'lunch-out'
+    : !r.lunch_in ? 'lunch-in'
+    : !r.exit_time ? 'exit'
+    : 'done';
+
+  const todayHours = calcHours(r);
+
+  // Filter records for current view month
+  const viewRecs = state.timeRecords.filter(rec=>{
+    const d = new Date(rec.date+'T12:00:00');
+    return d.getMonth()===state.timeViewMonth && d.getFullYear()===state.timeViewYear;
+  });
+  const totalMonthHours = viewRecs.reduce((sum,rec)=>sum+(rec.total_hours||calcHours(rec)||0),0);
+  const balance = calcBalance(viewRecs);
+
+  // Team view for admin/leader
+  const teamMembers = isAdmin ? state.users.filter(x=>x.role==='employee')
+    : isLeader ? state.users.filter(x=>x.role==='employee' && x.department===u.department)
+    : [];
+
+  return `
+    ${!isAdmin && !isLeader ? `
+    <div class="punch-card">
+      <div id="liveClock" class="punch-time">${now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</div>
+      <div class="punch-date">${now.toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div>
+      <div class="punch-buttons">
+        <button class="punch-btn entry ${r&&r.entry_time?'done':''}" ${(r&&r.entry_time)||nextPunch!=='entry'?'disabled':''} id="punchEntry">
+          <span class="punch-btn-icon">🟢</span>
+          <span>Entrada</span>
+          <span style="font-size:11px;opacity:.7">${formatTime(r?.entry_time)}</span>
+        </button>
+        <button class="punch-btn lunch-out ${r&&r.lunch_out?'done':''}" ${nextPunch!=='lunch-out'?'disabled':''} id="punchLunchOut">
+          <span class="punch-btn-icon">🍽️</span>
+          <span>Saída Almoço</span>
+          <span style="font-size:11px;opacity:.7">${formatTime(r?.lunch_out)}</span>
+        </button>
+        <button class="punch-btn lunch-in ${r&&r.lunch_in?'done':''}" ${nextPunch!=='lunch-in'?'disabled':''} id="punchLunchIn">
+          <span class="punch-btn-icon">🔄</span>
+          <span>Retorno Almoço</span>
+          <span style="font-size:11px;opacity:.7">${formatTime(r?.lunch_in)}</span>
+        </button>
+        <button class="punch-btn exit ${r&&r.exit_time?'done':''}" ${nextPunch!=='exit'?'disabled':''} id="punchExit">
+          <span class="punch-btn-icon">🔴</span>
+          <span>Saída</span>
+          <span style="font-size:11px;opacity:.7">${formatTime(r?.exit_time)}</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="boh-grid">
+      <div class="boh-card">
+        <div class="boh-number boh-neutral">${todayHours?todayHours.toFixed(1)+'h':'—'}</div>
+        <div class="boh-label">Horas Hoje</div>
+      </div>
+      <div class="boh-card">
+        <div class="boh-number ${balance.balance>=0?'boh-positive':'boh-negative'}">${formatBalance(balance.balance)}</div>
+        <div class="boh-label">Banco de Horas</div>
+      </div>
+      <div class="boh-card">
+        <div class="boh-number boh-neutral">${totalMonthHours.toFixed(1)}h</div>
+        <div class="boh-label">Total no Mês</div>
+      </div>
+    </div>
+    <div class="boh-grid">
+      <div class="boh-card">
+        <div class="boh-number ${balance.lateDays>0?'boh-negative':'boh-positive'}">${balance.lateDays}</div>
+        <div class="boh-label">Dias com Atraso</div>
+      </div>
+      <div class="boh-card">
+        <div class="boh-number boh-positive">${balance.overtimeDays}</div>
+        <div class="boh-label">Dias com Hora Extra</div>
+      </div>
+      <div class="boh-card">
+        <div class="boh-number boh-neutral">${balance.days}</div>
+        <div class="boh-label">Dias Registrados</div>
+      </div>
+    </div>` : ''}
+
+    <div class="section">
+      <div class="section-header">
+        <div>
+          <div class="section-title">Histórico de Ponto</div>
+          <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+            <button class="cal-nav" id="timePrev" style="font-size:12px;padding:4px 10px">←</button>
+            <span style="font-size:13px;font-weight:600">${months[state.timeViewMonth]} ${state.timeViewYear}</span>
+            <button class="cal-nav" id="timeNext" style="font-size:12px;padding:4px 10px">→</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span style="font-size:13px;color:var(--muted)">${totalMonthHours.toFixed(1)}h no mês</span>
+          <button class="btn btn-secondary btn-sm" id="exportTimeBtn">📄 PDF</button>
+        </div>
+      </div>
+
+      ${isAdmin || isLeader ? `
+      <div style="margin-bottom:24px">
+        <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:12px">Registros do Time — ${months[state.timeViewMonth]}</div>
+        <div class="time-table">
+          <table>
+            <thead><tr><th>Colaborador</th><th>Time</th><th>Dias</th><th>Total Horas</th><th>Média/Dia</th></tr></thead>
+            <tbody>
+              ${teamMembers.map(member=>{
+                // Note: admin sees their team's records but we only have current user's records loaded
+                // Show placeholder for team view
+                return `<tr>
+                  <td><div style="display:flex;align-items:center;gap:8px">
+                    ${member.avatar_url?`<img src="${member.avatar_url}" style="width:28px;height:28px;border-radius:50%;object-fit:cover">`:
+                    `<div class="avatar" style="width:28px;height:28px;font-size:10px">${initials(member.name)}</div>`}
+                    ${member.name}
+                  </div></td>
+                  <td><span class="team-badge">${member.department||'—'}</span></td>
+                  <td>—</td><td>—</td><td>—</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-top:8px">* Para ver o histórico completo do time, acesse o relatório de cada colaborador individualmente.</div>
+      </div>` : ''}
+
+      <div class="time-table">
+        <table>
+          <thead><tr><th>Data</th><th>Entrada</th><th>Saída Almoço</th><th>Retorno</th><th>Saída</th><th>Total</th></tr></thead>
+          <tbody>
+            ${viewRecs.length===0 ? `<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)">Nenhum registro este mês</td></tr>` :
+            viewRecs.map(rec=>{
+              const dt = new Date(rec.date+'T12:00:00');
+              const dateStr = dt.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'});
+              const h = rec.total_hours || (rec.exit_time ? calcHours(rec) : null);
+              const isLate = rec.entry_time && (new Date(rec.entry_time).getHours()>WORK_START||(new Date(rec.entry_time).getHours()===WORK_START&&new Date(rec.entry_time).getMinutes()>5));
+              return `<tr>
+                <td>${dateStr} ${isLate?'<span class="late-badge">Atraso</span>':''}</td>
+                <td>${formatTime(rec.entry_time)}</td>
+                <td>${formatTime(rec.lunch_out)}</td>
+                <td>${formatTime(rec.lunch_in)}</td>
+                <td>${formatTime(rec.exit_time)}</td>
+                <td><span class="hours-badge ${h>=WORK_HOURS?'hours-ok':h>=6?'hours-partial':'hours-low'}">${h?h.toFixed(1)+'h':'—'}</span>${h?` <span style="font-size:11px;color:${h>=WORK_HOURS?'var(--positive)':'var(--constructive)'}">${formatBalance(h-WORK_HOURS)}</span>`:''}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
 
 function renderCalendar(){
   const u = state.currentUser;
@@ -2544,6 +2940,25 @@ function bindApp(){
 
 
 
+
+  // Time clock
+  const punchEntry = document.getElementById('punchEntry');
+  if(punchEntry) punchEntry.onclick = ()=>punch('entry');
+  const punchLunchOut = document.getElementById('punchLunchOut');
+  if(punchLunchOut) punchLunchOut.onclick = ()=>punch('lunch-out');
+  const punchLunchIn = document.getElementById('punchLunchIn');
+  if(punchLunchIn) punchLunchIn.onclick = ()=>punch('lunch-in');
+  const punchExit = document.getElementById('punchExit');
+  if(punchExit) punchExit.onclick = ()=>punch('exit');
+
+  const timePrev = document.getElementById('timePrev');
+  if(timePrev) timePrev.onclick = ()=>{ state.timeViewMonth--; if(state.timeViewMonth<0){state.timeViewMonth=11;state.timeViewYear--;} render(); };
+  const timeNext = document.getElementById('timeNext');
+  if(timeNext) timeNext.onclick = ()=>{ state.timeViewMonth++; if(state.timeViewMonth>11){state.timeViewMonth=0;state.timeViewYear++;} render(); };
+
+  const exportTimeBtn = document.getElementById('exportTimeBtn');
+  if(exportTimeBtn) exportTimeBtn.onclick = exportTimePDF;
+
   // Change password
   const changePasswordBtn = document.getElementById('changePasswordBtn');
   if(changePasswordBtn) changePasswordBtn.onclick = ()=>{ state.showPasswordModal=true; state.passwordError=''; render(); };
@@ -2785,6 +3200,7 @@ function svgIcon(n){
     add:`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
     logout:`<svg width="13" height="13" viewBox="0 0 24 24" ${s}><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`,
     msg:`<svg width="15" height="15" viewBox="0 0 24 24" ${s}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>`,
+    clock:`<svg width="15" height="15" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" fill="none"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
     bell:`<svg width="16" height="16" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" fill="none"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>`,
     cal:`<svg width="15" height="15" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" fill="none"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
     poll:`<svg width="15" height="15" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" fill="none"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`,
