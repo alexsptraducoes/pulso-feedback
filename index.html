@@ -463,7 +463,17 @@ async function restoreSession(){
     if(!saved) return false;
     const s = JSON.parse(saved);
     const { data } = await sb.from('users').select('*').eq('id', s.id).eq('password', s.password).single();
-    if(data){ state.currentUser = data; await loadData(); return true; }
+    if(data){
+    state.currentUser = data;
+    await loadData();
+    // Track first access on restore too
+    if(!data.first_access){
+      await sb.from('users').update({ first_access: new Date().toISOString() }).eq('id', data.id);
+      const adminIds = (state.users||[]).filter(u=>u.role==='admin').map(u=>u.id);
+      if(adminIds.length > 0) createNotifForUsers(adminIds, '👋', data.name + ' fez seu primeiro acesso ao FLOW!', 'users');
+    }
+    return true;
+  }
     clearSession(); return false;
   }catch(e){ return false; }
 }
@@ -636,6 +646,13 @@ async function handleLogin(){
   state.loginLoading = false;
   saveSession(data);
   await loadData();
+  // Track first access
+  if(!data.first_access){
+    await sb.from('users').update({ first_access: new Date().toISOString() }).eq('id', data.id);
+    // Notify all admins
+    const adminIds = state.users.filter(u=>u.role==='admin').map(u=>u.id);
+    createNotifForUsers(adminIds, '👋', data.name + ' fez seu primeiro acesso ao FLOW!', 'users');
+  }
   requestNotificationPermission();
   startNotifPolling();
   startRealtime();
@@ -797,8 +814,11 @@ async function submitAnnouncement(){
 }
 
 async function deleteAnnouncement(id){
+  const ann = state.announcements.find(a=>a.id===id);
   const { error } = await sb.from('announcements').delete().eq('id', id);
   if(!error){
+    // Delete related notifications for all users
+    if(ann) await sb.from('notifications').delete().ilike('text', '%'+ann.title+'%');
     state.announcements = state.announcements.filter(a=>a.id!==id);
     state.confirm = null;
     showToast('Aviso excluído.');
@@ -852,15 +872,10 @@ async function markNotifRead(id){
 }
 
 async function markAllReadDB(){
-  await sb.from('notifications').update({ read: true }).eq('user_id', state.currentUser.id);
-  state.notifications = state.notifications.map(n=>({...n,read:true}));
+  // Delete all notifications immediately after viewing
+  await sb.from('notifications').delete().eq('user_id', state.currentUser.id);
+  state.notifications = [];
   render();
-  // Delete read notifications after 5 seconds so they don't reappear
-  setTimeout(async ()=>{
-    await sb.from('notifications').delete().eq('user_id', state.currentUser.id).eq('read', true);
-    state.notifications = state.notifications.filter(n=>!n.read);
-    render();
-  }, 5000);
 }
 
 async function clearNotificationsDB(){
@@ -874,8 +889,8 @@ function startNotifPolling(){
   setInterval(async ()=>{
     if(!state.currentUser) return;
     const latest = state.notifications[0];
-    let query = sb.from('notifications').select('*').eq('user_id', state.currentUser.id).eq('read', false).order('created_at', { ascending: false }).limit(20);
-    if(latest) query = query.gt('created_at', latest.created_at||new Date(0).toISOString());
+    const since = state.notifications.length > 0 ? state.notifications[0].created_at : new Date(Date.now() - 60000).toISOString();
+    let query = sb.from('notifications').select('*').eq('user_id', state.currentUser.id).eq('read', false).gt('created_at', since).order('created_at', { ascending: false }).limit(20);
     const { data } = await query;
     if(data && data.length > 0){
       state.notifications = [...data, ...state.notifications].slice(0,50);
@@ -1303,9 +1318,12 @@ async function deleteMessage(id){
 }
 
 async function deletePoll(id){
+  const poll = state.polls.find(p=>p.id===id);
   await sb.from('poll_votes').delete().eq('poll_id', id);
   const { error } = await sb.from('polls').delete().eq('id', id);
   if(!error){
+    // Delete related notifications for all users
+    if(poll) await sb.from('notifications').delete().ilike('text', '%'+poll.question.slice(0,30)+'%');
     state.polls = state.polls.filter(p=>p.id!==id);
     state.pollVotes = state.pollVotes.filter(v=>v.poll_id!==id);
     state.confirm = null;
@@ -2018,7 +2036,7 @@ function renderUsers(){
       <div class="users-table">
         <table>
           <thead><tr>
-            <th>Nome</th><th>E-mail</th><th>Perfil</th><th>Time / Departamento</th><th>Aniversário</th><th></th>
+            <th>Nome</th><th>E-mail</th><th>Perfil</th><th>Time / Departamento</th><th>Aniversário</th><th>Primeiro Acesso</th><th></th>
           </tr></thead>
           <tbody>
             ${allUsers.map(u=>`
@@ -2030,6 +2048,7 @@ function renderUsers(){
                 <td><span class="role-pill role-${u.role}">${u.role==='admin'?'Admin':u.role==='manager'?'Gestor':u.role==='leader'?'Líder':'Colaborador'}</span></td>
                 <td>${u.department ? `<span class="team-badge">${u.department}</span>` : '—'}</td>
                 <td>${u.birthday ? new Date(u.birthday+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : '—'}</td>
+                <td>${u.first_access ? '<span style="color:var(--positive);font-size:11px">✅ '+new Date(u.first_access).toLocaleDateString('pt-BR')+'</span>' : '<span style="color:var(--constructive);font-size:11px">⏳ Nunca acessou</span>'}</td>
                 <td style="display:flex;gap:6px;align-items:center">
                   <button class="btn btn-secondary btn-sm" data-edit-birthday="${u.id}" data-edit-birthday-name="${u.name}" data-edit-birthday-val="${u.birthday||''}">🎂</button>
                   <button class="btn btn-secondary btn-sm" data-edit-user="${u.id}" data-edit-user-name="${u.name}" data-edit-user-email="${u.email}" data-edit-user-role="${u.role}" data-edit-user-dept="${u.department||''}">✏️</button>
