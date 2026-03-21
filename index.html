@@ -721,54 +721,80 @@ async function submitUser(){
 
 // ── Realtime ─────────────────────────────────────────────────────────────────
 function startRealtime(){
-  // Listen for new notifications
-  sb.channel('notifications')
+  sb.channel('rt-notifications')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${state.currentUser.id}` },
       payload => {
-        state.notifications = [payload.new, ...state.notifications].slice(0,50);
-        render();
-        if(Notification.permission==='granted'){
-          new Notification('🔔 FLOW - SP Traduções', { body: payload.new.text.replace(/<[^>]+>/g,''), tag:'flow-'+payload.new.id });
+        if(!state.notifications.find(n=>n.id===payload.new.id)){
+          state.notifications = [payload.new, ...state.notifications].slice(0,50);
+          render();
+          if(Notification.permission==='granted'){
+            new Notification('🔔 FLOW — SP Traduções', { body: payload.new.text.replace(/<[^>]+>/g,''), tag:'flow-'+payload.new.id });
+          }
         }
       })
     .subscribe();
 
-  // Listen for new feedbacks to this user
-  sb.channel('feedbacks')
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'feedbacks', filter: `to_id=eq.${state.currentUser.id}` },
-      async payload => {
-        state.feedbacks = [payload.new, ...state.feedbacks];
+  sb.channel('rt-feedbacks')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'feedbacks' },
+      payload => {
+        if(!state.feedbacks.find(f=>f.id===payload.new.id)){
+          state.feedbacks = [payload.new, ...state.feedbacks];
+          render();
+        }
+      })
+    .subscribe();
+
+  sb.channel('rt-announcements')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' },
+      async () => {
+        const { data } = await sb.from('announcements').select('*').order('created_at', { ascending: false });
+        state.announcements = data || [];
         render();
       })
     .subscribe();
 
-  // Listen for new announcements
-  sb.channel('announcements')
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'announcements' },
-      payload => {
-        state.announcements = [payload.new, ...state.announcements];
+  sb.channel('rt-polls')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'polls' },
+      async () => {
+        const { data } = await sb.from('polls').select('*').order('created_at', { ascending: false });
+        state.polls = data || [];
         render();
       })
     .subscribe();
 
-  // Listen for new polls
-  sb.channel('polls')
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'polls' },
-      payload => {
-        state.polls = [payload.new, ...state.polls];
+  sb.channel('rt-poll-votes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'poll_votes' },
+      async () => {
+        const { data } = await sb.from('poll_votes').select('*');
+        state.pollVotes = data || [];
         render();
       })
     .subscribe();
 
-  // Listen for message replies
-  sb.channel('messages')
-    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages', filter: `from_id=eq.${state.currentUser.id}` },
-      payload => {
-        state.messages = state.messages.map(m => m.id===payload.new.id ? payload.new : m);
+  sb.channel('rt-messages')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' },
+      async () => {
+        const u = state.currentUser;
+        const { data } = await sb.from('messages').select('*').order('created_at', { ascending: false });
+        state.messages = u.role==='admin' ? (data||[]) : (data||[]).filter(m=>m.from_id===u.id);
         render();
+      })
+    .subscribe();
+
+  sb.channel('rt-time-records')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'time_records' },
+      async () => {
+        const todayStr = new Date().toISOString().slice(0,10);
+        const { data } = await sb.from('time_records').select('*').eq('user_id', state.currentUser.id).order('date', { ascending: false }).limit(60);
+        if(data){
+          state.timeRecords = [...(data||[]), ...state.timeRecords.filter(r=>r.user_id!==state.currentUser.id)];
+          state.todayRecord = data.find(r=>r.date===todayStr) || null;
+          render();
+        }
       })
     .subscribe();
 }
+
 
 // ── Push Notifications ──────────────────────────────────────────────────────
 async function requestNotificationPermission(){
@@ -2096,15 +2122,14 @@ function renderFeedbackList(list, showFrom, showTo){
 
 function renderConfirm(){
   const c = state.confirm;
-  const isFb = c.type === 'feedback';
+  const titles = { feedback:'Excluir Feedback', user:'Excluir Usuário', announcement:'Excluir Aviso', poll:'Excluir Enquete', event:'Excluir Evento', personal_event:'Excluir Evento', evaluation:'Excluir Avaliação', eom:'Remover Destaque', time_record:'Excluir Registro', message:'Excluir Mensagem' };
+  const title = titles[c.type] || 'Confirmar Exclusão';
   return `
   <div class="confirm-overlay">
     <div class="confirm-box">
-      <div class="confirm-title">${isFb ? 'Excluir Feedback' : 'Excluir Usuário'}</div>
+      <div class="confirm-title">${title}</div>
       <div class="confirm-text">
-        ${isFb
-          ? `Tem certeza que deseja excluir o feedback<br><strong>"${c.name}"</strong>?<br>Esta ação não pode ser desfeita.`
-          : `Tem certeza que deseja excluir<br><strong>${c.name}</strong>?<br>Todos os feedbacks também serão excluídos.`}
+        Tem certeza que deseja excluir <strong>${c.name}</strong>?<br>Esta ação não pode ser desfeita.
       </div>
       <div class="confirm-actions">
         <button class="btn btn-secondary" id="cancelConfirm">Cancelar</button>
