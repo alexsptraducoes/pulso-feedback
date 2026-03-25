@@ -3554,8 +3554,7 @@ function renderAI(){
             <div style="font-size:13px">Faça perguntas sobre os dados do sistema.<br>Tenho acesso a feedbacks, ponto, faltas e muito mais.</div>
           </div>` :
           state.aiMessages.map(m=>`
-            <div class="ai-msg ${m.role}">${m.content.replace(/
-/g,'<br>')}</div>
+            <div class="ai-msg ${m.role}">${m.content.split('\n').join('<br>')}</div>
           `).join('')}
         ${state.aiLoading ? '<div class="ai-msg loading">Analisando dados...</div>' : ''}
       </div>
