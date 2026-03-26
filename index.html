@@ -3461,76 +3461,180 @@ async function sendAIMessage(){
   state.aiLoading = true;
   render();
 
-  // Build context from system data
+  const apiKey = state.anthropicKey || localStorage.getItem('flow_ai_key') || '';
+  if(!apiKey){
+    state.aiMessages = [...state.aiMessages, { role:'assistant', content: 'Configure sua chave de API nas configurações da IA.' }];
+    state.aiLoading = false; render(); return;
+  }
+
+  // Build comprehensive context
   const now = new Date();
   const thisMonth = now.getMonth();
   const thisYear = now.getFullYear();
   const monthName = now.toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+  const todayStr = now.toISOString().slice(0,10);
 
   const employees = state.users.filter(u=>u.role==='employee');
+  const leaders = state.users.filter(u=>u.role==='leader');
   const monthRecords = state.timeRecords.filter(r=>{
     const d = new Date(r.date+'T12:00:00');
     return d.getMonth()===thisMonth && d.getFullYear()===thisYear;
   });
-  const monthAbsences = state.absences.filter(a=>{
-    const d = new Date(a.date+'T12:00:00');
-    return d.getMonth()===thisMonth && d.getFullYear()===thisYear;
-  });
 
-  // Build summary data
-  const empSummary = employees.map(emp=>{
-    const fbs = state.feedbacks.filter(f=>f.to_id===emp.id);
-    const pos = fbs.filter(f=>f.type==='positive').length;
-    const con = fbs.filter(f=>f.type==='constructive').length;
+  // Detailed per-employee analysis
+  const empData = state.users.filter(u=>u.role!=='admin').map(emp=>{
+    const fbsReceived = state.feedbacks.filter(f=>f.to_id===emp.id);
+    const fbsGiven = state.feedbacks.filter(f=>f.from_id===emp.id);
+    const posReceived = fbsReceived.filter(f=>f.type==='positive');
+    const conReceived = fbsReceived.filter(f=>f.type==='constructive');
     const recs = monthRecords.filter(r=>r.user_id===emp.id);
-    const absences = monthAbsences.filter(a=>a.user_id===emp.id);
-    const approvedAbs = absences.filter(a=>a.status==='approved').length;
-    const pendingAbs = absences.filter(a=>a.status==='pending').length;
-    const rejectedAbs = absences.filter(a=>a.status==='rejected').length;
-    const totalHours = recs.reduce((sum,r)=>sum+(r.total_hours||0),0);
-    const lateDays = recs.filter(r=>r.entry_time && (new Date(r.entry_time).getHours()>9||(new Date(r.entry_time).getHours()===9&&new Date(r.entry_time).getMinutes()>5))).length;
-    return { name:emp.name, dept:emp.department||'—', feedbacksPositivos:pos, feedbacksConstrutivos:con, horasMes:totalHours.toFixed(1), diasRegistrados:recs.length, diasAtraso:lateDays, faltasAprovadas:approvedAbs, faltasPendentes:pendingAbs, faltasNegadas:rejectedAbs };
+    const absMonthAll = state.absences.filter(a=>{
+      const d = new Date(a.date+'T12:00:00');
+      return a.user_id===emp.id && d.getMonth()===thisMonth && d.getFullYear()===thisYear;
+    });
+    const totalHours = recs.reduce((sum,r)=>sum+(r.total_hours||calcHours(r)||0),0);
+    const expectedHours = recs.filter(r=>r.entry_time&&r.exit_time).length * WORK_HOURS;
+    const bal = calcBalance(recs);
+    const evals = state.evaluations.filter(e=>e.to_id===emp.id);
+    const avgEval = evals.length>0 ? (evals.reduce((sum,e)=>{
+      const scores = Object.values(e.scores||{});
+      return sum + (scores.length>0 ? scores.reduce((a,b)=>a+b,0)/scores.length : 0);
+    },0)/evals.length).toFixed(1) : null;
+
+    // Recent feedbacks content
+    const recentFbs = fbsReceived.slice(0,5).map(f=>({
+      tipo: f.type==='positive'?'Positivo':'Construtivo',
+      categoria: f.category,
+      titulo: f.title,
+      data: new Date(f.created_at).toLocaleDateString('pt-BR')
+    }));
+
+    return {
+      nome: emp.name,
+      perfil: emp.role==='leader'?'Líder':emp.role==='manager'?'Gestor':'Colaborador',
+      time: emp.department||'Sem time',
+      primeiroAcesso: emp.first_access ? new Date(emp.first_access).toLocaleDateString('pt-BR') : 'Nunca acessou',
+      feedbacks: {
+        totalRecebidos: fbsReceived.length,
+        positivos: posReceived.length,
+        construtivos: conReceived.length,
+        ultimosFeedbacks: recentFbs
+      },
+      pontoMes: {
+        diasRegistrados: recs.length,
+        horasTrabalhadas: totalHours.toFixed(1)+'h',
+        horasEsperadas: expectedHours+'h',
+        bancoDeHoras: formatBalance(bal.balance),
+        diasAtraso: bal.lateDays,
+        diasHoraExtra: bal.overtimeDays
+      },
+      faltas: {
+        total: absMonthAll.length,
+        aprovadas: absMonthAll.filter(a=>a.status==='approved').length,
+        pendentes: absMonthAll.filter(a=>a.status==='pending').length,
+        negadas: absMonthAll.filter(a=>a.status==='rejected').length
+      },
+      avaliacaoMedia: avgEval ? avgEval+'/5' : 'Sem avaliação',
+      totalAvaliacoes: evals.length
+    };
   });
 
-  const systemPrompt = `Você é um assistente de RH e gestão de pessoas da SP Traduções. Você tem acesso aos dados do sistema FLOW e deve responder perguntas sobre colaboradores, feedbacks, ponto eletrônico, faltas e desempenho. Seja direto, objetivo e em português.
+  // Team summaries
+  const teamData = ['Comercial','Financeiro','Projetos','Finalização'].map(team=>{
+    const members = employees.filter(e=>e.department===team);
+    const teamFbs = state.feedbacks.filter(f=>members.some(m=>m.id===f.to_id));
+    const teamAbs = state.absences.filter(a=>members.some(m=>m.id===a.user_id) && (() => { const d = new Date(a.date+'T12:00:00'); return d.getMonth()===thisMonth; })());
+    return {
+      time: team,
+      colaboradores: members.length,
+      lider: leaders.find(l=>l.department===team)?.name || 'Sem líder',
+      feedbacksPositivos: teamFbs.filter(f=>f.type==='positive').length,
+      feedbacksConstrutivos: teamFbs.filter(f=>f.type==='constructive').length,
+      faltasMes: teamAbs.length
+    };
+  });
 
-DADOS DO SISTEMA (${monthName}):
-${JSON.stringify(empSummary, null, 2)}
+  // General stats
+  const pollResults = state.polls.map(p=>{
+    const votes = state.pollVotes.filter(v=>v.poll_id===p.id);
+    const options = p.options || [];
+    return {
+      pergunta: p.question,
+      status: p.active?'Ativa':'Encerrada',
+      totalVotos: votes.length,
+      resultados: options.map((opt,i)=>({
+        opcao: opt,
+        votos: votes.filter(v=>v.option_index===i).length,
+        percentual: votes.length>0?Math.round(votes.filter(v=>v.option_index===i).length/votes.length*100)+'%':'0%'
+      }))
+    };
+  });
 
-TOTAL DE FEEDBACKS: ${state.feedbacks.length} (${state.feedbacks.filter(f=>f.type==='positive').length} positivos, ${state.feedbacks.filter(f=>f.type==='constructive').length} construtivos)
-TOTAL DE COLABORADORES: ${employees.length}
-ENQUETES ATIVAS: ${state.polls.filter(p=>p.active).length}
-AVISOS PUBLICADOS: ${state.announcements.length}
+  const systemPrompt = `Você é um assistente de RH e gestão de pessoas da SP Traduções, empresa de tradução juramentada sediada em São Paulo. Você tem acesso completo ao sistema FLOW — plataforma interna de gestão de pessoas.
 
-Responda de forma clara e útil. Se a pergunta for sobre dados específicos, cite nomes e números.`;
+Seu papel é analisar os dados disponíveis e responder qualquer pergunta do gestor (Alex, CEO) de forma inteligente, detalhada e com insights práticos. Você pode:
+- Identificar padrões de comportamento e desempenho
+- Comparar colaboradores e times
+- Sugerir ações baseadas nos dados
+- Alertar sobre situações preocupantes
+- Reconhecer boas práticas
+- Fazer análises preditivas
+- Responder perguntas livres e criativas sobre o time
+
+Sempre responda em português, de forma clara e direta. Use emojis com moderação para tornar a resposta mais legível. Quando relevante, cite nomes específicos e números exatos.
+
+=== DADOS COMPLETOS DO SISTEMA — ${now.toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})} ===
+
+RESUMO GERAL:
+- Total de colaboradores: ${employees.length}
+- Total de feedbacks: ${state.feedbacks.length} (${state.feedbacks.filter(f=>f.type==='positive').length} positivos, ${state.feedbacks.filter(f=>f.type==='constructive').length} construtivos)
+- Avisos publicados: ${state.announcements.length}
+- Enquetes: ${state.polls.length} (${state.polls.filter(p=>p.active).length} ativas)
+- Mês atual: ${monthName}
+
+DADOS POR COLABORADOR:
+${JSON.stringify(empData, null, 2)}
+
+DADOS POR TIME:
+${JSON.stringify(teamData, null, 2)}
+
+ENQUETES E RESULTADOS:
+${JSON.stringify(pollResults, null, 2)}
+
+AVISOS RECENTES:
+${state.announcements.slice(0,5).map(a=>`- [${a.priority==='urgent'?'URGENTE':'INFO'}] ${a.title}: ${a.content.slice(0,100)}`).join('\n')}
+
+=== FIM DOS DADOS ===
+
+Responda sempre baseado nesses dados reais. Se não houver dados suficientes para uma análise, informe isso e sugira o que pode ser feito para melhorar a coleta de dados.`;
 
   try {
-    const apiKey = state.anthropicKey || localStorage.getItem('flow_ai_key') || '';
-    if(!apiKey){ state.aiMessages = [...state.aiMessages, { role:'assistant', content: 'Configure sua chave de API nas configuracoes da IA.' }]; state.aiLoading=false; render(); return; }
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
+        max_tokens: 2000,
         system: systemPrompt,
-        messages: state.aiMessages
+        messages: state.aiMessages.map(m=>({ role: m.role, content: m.content }))
       })
     });
     const data = await response.json();
     const reply = data.content?.[0]?.text || 'Não consegui processar sua pergunta. Tente novamente.';
     state.aiMessages = [...state.aiMessages, { role:'assistant', content: reply }];
   } catch(e) {
-    state.aiMessages = [...state.aiMessages, { role:'assistant', content: 'Erro ao conectar com a IA. Verifique sua conexão e tente novamente.' }];
+    state.aiMessages = [...state.aiMessages, { role:'assistant', content: 'Erro ao conectar com a IA. Verifique sua chave de API e conexão.' }];
   }
   state.aiLoading = false;
   render();
-  // Scroll to bottom
-  setTimeout(()=>{
-    const msgs = document.getElementById('aiMessages');
-    if(msgs) msgs.scrollTop = msgs.scrollHeight;
-  }, 100);
+  setTimeout(()=>{ const msgs = document.getElementById('aiMessages'); if(msgs) msgs.scrollTop = msgs.scrollHeight; }, 100);
 }
+
 
 function renderAI(){
   const suggestions = [
