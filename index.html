@@ -568,6 +568,9 @@ let state = {
   aiLoading: false,
   aiInput: '',
   anthropicKey: localStorage.getItem('flow_ai_key') || '',
+  workSchedules: [],
+  showScheduleModal: false,
+  scheduleForm: { userId:'', userName:'', entry_time:'09:00', exit_time:'18:00', lunch_hours:1, work_hours:8 },
   showMsgModal: false,
   msgForm: { type:'Elogio', title:'', content:'' },
   replyText: '',
@@ -596,6 +599,21 @@ function getVisibleFeedbacks(){
     return state.feedbacks.filter(f => myTeamIds.includes(f.to_id));
   }
   return state.feedbacks.filter(f => f.to_id === u.id);
+}
+
+function getUserSchedule(userId){
+  const s = state.workSchedules.find(s=>s.user_id===userId);
+  return s || { entry_time:'09:00', exit_time:'18:00', lunch_hours:1, work_hours:8 };
+}
+
+function getWorkStart(userId){
+  const s = getUserSchedule(userId);
+  return parseInt(s.entry_time.split(':')[0]);
+}
+
+function getWorkHours(userId){
+  const s = getUserSchedule(userId);
+  return s.work_hours || 8;
 }
 
 function canGiveFeedbackTo(targetUser){
@@ -657,6 +675,8 @@ async function loadData(){
   state.todayRecord = state.timeRecords.find(r=>r.date===todayStr2 && r.user_id===state.currentUser.id) || null;
   const { data: absencesData } = await sb.from('absences').select('*').order('date', { ascending: false });
   state.absences = absencesData || [];
+  const { data: schedules } = await sb.from('work_schedules').select('*');
+  state.workSchedules = schedules || [];
   // Start event reminder checker
   startEventReminders();
   // Start clock
@@ -1100,12 +1120,15 @@ function calcBalance(recs){
   const totalWorked = completed.reduce((sum,r)=>sum+(calcHours(r)||0),0);
   const totalExpected = completed.length * WORK_HOURS;
   const balance = totalWorked - totalExpected;
+  const userId = recs[0]?.user_id;
+  const userStart = userId ? getWorkStart(userId) : WORK_START;
+  const userHours = userId ? getWorkHours(userId) : WORK_HOURS;
   const lateDays = recs.filter(r=>{
     if(!r.entry_time) return false;
     const d = new Date(r.entry_time);
-    return d.getHours() > WORK_START || (d.getHours()===WORK_START && d.getMinutes()>5);
+    return d.getHours() > userStart || (d.getHours()===userStart && d.getMinutes()>5);
   }).length;
-  const overtimeDays = completed.filter(r=>(calcHours(r)||0)>WORK_HOURS).length;
+  const overtimeDays = completed.filter(r=>(calcHours(r)||0)>userHours).length;
   return { totalWorked:Math.round(totalWorked*100)/100, totalExpected, balance:Math.round(balance*100)/100, lateDays, overtimeDays, days:completed.length };
 }
 
@@ -1227,6 +1250,39 @@ async function loadAllTimeRecords(){
   render();
 }
 
+
+
+async function saveSchedule(){
+  const f = state.scheduleForm;
+  if(!f.userId) return;
+  // Calculate work hours from entry/exit
+  const entryH = parseInt(f.entry_time.split(':')[0]);
+  const entryM = parseInt(f.entry_time.split(':')[1]);
+  const exitH = parseInt(f.exit_time.split(':')[0]);
+  const exitM = parseInt(f.exit_time.split(':')[1]);
+  const totalMins = (exitH*60+exitM) - (entryH*60+entryM) - (f.lunch_hours*60);
+  const work_hours = Math.max(0, Math.round(totalMins/60*100)/100);
+
+  const { data, error } = await sb.from('work_schedules').upsert({
+    user_id: f.userId,
+    entry_time: f.entry_time,
+    exit_time: f.exit_time,
+    lunch_hours: f.lunch_hours,
+    work_hours,
+    updated_by: state.currentUser.id,
+    updated_at: new Date().toISOString()
+  }, { onConflict: 'user_id' }).select().single();
+
+  if(!error && data){
+    state.workSchedules = state.workSchedules.filter(s=>s.user_id!==f.userId);
+    state.workSchedules = [...state.workSchedules, data];
+    state.showScheduleModal = false;
+    showToast('✦ Jornada atualizada para '+f.userName+'!');
+    render();
+  } else {
+    showToast('Erro ao salvar jornada.');
+  }
+}
 
 async function submitAbsence(){
   const f = state.absenceForm;
@@ -1940,6 +1996,7 @@ function renderApp(){
     ${state.showPasswordModal ? renderPasswordModal() : ''}
     ${state.showEditTimeModal ? renderEditTimeModal() : ''}
     ${state.showAbsenceModal ? renderAbsenceModal() : ''}
+    ${state.showScheduleModal ? renderScheduleModal() : ''}
     ${state.showReviewModal ? renderReviewModal() : ''}
     ${state.confirm ? renderConfirm() : ''}
     ${state.toast ? `<div class="toast">${state.toast}</div>` : ''}
@@ -2172,7 +2229,7 @@ function renderUsers(){
       <div class="users-table">
         <table>
           <thead><tr>
-            <th>Nome</th><th>E-mail</th><th>Perfil</th><th>Time / Departamento</th><th>Aniversário</th><th>Primeiro Acesso</th><th></th>
+            <th>Nome</th><th>E-mail</th><th>Perfil</th><th>Time / Departamento</th><th>Jornada</th><th>Aniversário</th><th>Primeiro Acesso</th><th></th>
           </tr></thead>
           <tbody>
             ${allUsers.map(u=>`
@@ -2183,10 +2240,12 @@ function renderUsers(){
                 <td>${u.email}</td>
                 <td><span class="role-pill role-${u.role}">${u.role==='admin'?'Admin':u.role==='manager'?'Gestor':u.role==='leader'?'Líder':'Colaborador'}</span></td>
                 <td>${u.department ? `<span class="team-badge">${u.department}</span>` : '—'}</td>
+                <td>${(()=>{ const s=getUserSchedule(u.id); return s.entry_time.slice(0,5)+' - '+s.exit_time.slice(0,5); })()}</td>
                 <td>${u.birthday ? new Date(u.birthday+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : '—'}</td>
                 <td>${u.first_access ? '<span style="color:var(--positive);font-size:11px">✅ '+new Date(u.first_access).toLocaleDateString('pt-BR')+'</span>' : '<span style="color:var(--constructive);font-size:11px">⏳ Nunca acessou</span>'}</td>
                 <td style="display:flex;gap:6px;align-items:center">
                   <button class="btn btn-secondary btn-sm" data-edit-birthday="${u.id}" data-edit-birthday-name="${u.name}" data-edit-birthday-val="${u.birthday||''}">🎂</button>
+                  ${(state.currentUser.role==='admin'||state.currentUser.role==='manager') ? `<button class="btn btn-secondary btn-sm" data-edit-schedule="${u.id}" data-schedule-name="${u.name}">⏰</button>` : ''}
                   <button class="btn btn-secondary btn-sm" data-edit-user="${u.id}" data-edit-user-name="${u.name}" data-edit-user-email="${u.email}" data-edit-user-role="${u.role}" data-edit-user-dept="${u.department||''}">✏️</button>
                   ${u.id!==state.currentUser.id && (state.currentUser.role==='admin'||state.currentUser.role==='manager') ? `<button class="btn btn-danger btn-sm" data-delete-user="${u.id}" data-delete-user-name="${u.name}">🗑</button>` : ''}
                 </td>
@@ -2982,6 +3041,58 @@ function renderBirthdayModal(){
 
 
 
+
+
+function renderScheduleModal(){
+  const f = state.scheduleForm;
+  const entryH = parseInt(f.entry_time.split(':')[0]);
+  const entryM = parseInt(f.entry_time.split(':')[1]||0);
+  const exitH = parseInt(f.exit_time.split(':')[0]);
+  const exitM = parseInt(f.exit_time.split(':')[1]||0);
+  const totalMins = (exitH*60+exitM) - (entryH*60+entryM) - (f.lunch_hours*60);
+  const workH = Math.max(0, Math.floor(totalMins/60));
+  const workM = Math.max(0, totalMins%60);
+  return `
+  <div class="modal-overlay" id="scheduleModalOverlay">
+    <div class="modal" style="max-width:440px">
+      <div class="modal-header">
+        <div class="modal-title">⏰ Jornada de Trabalho</div>
+        <button class="modal-close" id="closeScheduleModal">×</button>
+      </div>
+      <div class="modal-body">
+        <div style="background:var(--cream);padding:12px 16px;border-radius:var(--radius-sm);margin-bottom:16px;font-size:13px">
+          <strong>${f.userName}</strong> — Editando jornada individual
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Entrada</label>
+            <input class="form-input" id="scheduleEntry" type="time" value="${f.entry_time}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Saída</label>
+            <input class="form-input" id="scheduleExit" type="time" value="${f.exit_time}">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Intervalo de Almoço (horas)</label>
+          <select class="form-select" id="scheduleLunch">
+            <option value="0.5" ${f.lunch_hours==0.5?'selected':''}>30 minutos</option>
+            <option value="1" ${f.lunch_hours==1?'selected':''}>1 hora</option>
+            <option value="1.5" ${f.lunch_hours==1.5?'selected':''}>1h30</option>
+            <option value="2" ${f.lunch_hours==2?'selected':''}>2 horas</option>
+          </select>
+        </div>
+        <div style="background:#d8f3dc;padding:12px 16px;border-radius:var(--radius-sm);font-size:13px;color:var(--positive)">
+          ✦ Total de horas diárias: <strong>${workH}h${workM>0?workM+'min':''}</strong>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancelScheduleModal">Cancelar</button>
+        <button class="btn btn-primary" id="submitSchedule">Salvar Jornada →</button>
+      </div>
+    </div>
+  </div>`;
+}
 
 function renderAbsenceModal(){
   const f = state.absenceForm;
@@ -3795,6 +3906,37 @@ function bindApp(){
 
 
 
+
+
+  // Work schedule
+  document.querySelectorAll('[data-edit-schedule]').forEach(el=>{
+    el.onclick = ()=>{
+      const userId = el.dataset.editSchedule;
+      const s = getUserSchedule(userId);
+      state.scheduleForm = {
+        userId, userName: el.dataset.scheduleName,
+        entry_time: s.entry_time.slice(0,5),
+        exit_time: s.exit_time.slice(0,5),
+        lunch_hours: s.lunch_hours,
+        work_hours: s.work_hours
+      };
+      state.showScheduleModal = true;
+      render();
+    };
+  });
+
+  if(state.showScheduleModal){
+    document.getElementById('closeScheduleModal').onclick = ()=>{ state.showScheduleModal=false; render(); };
+    document.getElementById('cancelScheduleModal').onclick = ()=>{ state.showScheduleModal=false; render(); };
+    document.getElementById('scheduleModalOverlay').onclick = e=>{ if(e.target.id==='scheduleModalOverlay'){ state.showScheduleModal=false; render(); }};
+    const se = document.getElementById('scheduleEntry');
+    if(se) se.onchange = e=>{ state.scheduleForm.entry_time=e.target.value; render(); };
+    const sx = document.getElementById('scheduleExit');
+    if(sx) sx.onchange = e=>{ state.scheduleForm.exit_time=e.target.value; render(); };
+    const sl = document.getElementById('scheduleLunch');
+    if(sl) sl.onchange = e=>{ state.scheduleForm.lunch_hours=parseFloat(e.target.value); render(); };
+    document.getElementById('submitSchedule').onclick = saveSchedule;
+  }
 
   // AI API Key
   const saveApiKeyBtn = document.getElementById('saveApiKeyBtn');
