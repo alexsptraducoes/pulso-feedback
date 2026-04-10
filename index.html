@@ -544,6 +544,7 @@ let state = {
   clockTime: new Date(),
   timeViewMonth: new Date().getMonth(),
   timeViewYear: new Date().getFullYear(),
+  timeFilter: { userId:'', date:'', dept:'', entry:'', lunchOut:'', lunchIn:'', exit:'', minHours:'' },
   showEditTimeModal: false,
   editTimeForm: { id:'', user_name:'', date:'', entry_time:'', lunch_out:'', lunch_in:'', exit_time:'' },
   allUsersTimeRecords: [],
@@ -1245,7 +1246,7 @@ async function loadAllTimeRecords(){
   const y = state.timeViewYear;
   const firstDay = new Date(y, m, 1).toISOString().slice(0,10);
   const lastDay = new Date(y, m+1, 0).toISOString().slice(0,10);
-  const { data } = await sb.from('time_records').select('*').gte('date', firstDay).lte('date', lastDay).order('date', { ascending: false });
+  const { data } = await sb.from('time_records').select('*').gte('date', firstDay).lte('date', lastDay).order('date', { ascending: false }).limit(500);
   state.allUsersTimeRecords = data || [];
   render();
 }
@@ -2012,7 +2013,13 @@ function renderView(){
   if(state.view==='users') return renderUsers();
   if(state.view==='messages') return renderMessages();
   if(state.view==='profile') return renderProfile();
-  if(state.view==='timeclock') return renderTimeClock();
+  if(state.view==='timeclock'){
+    // Auto-load team records for admin/manager/leader
+    if((state.currentUser.role==='admin'||state.currentUser.role==='manager'||state.currentUser.role==='leader') && state.allUsersTimeRecords.length===0){
+      loadAllTimeRecords();
+    }
+    return renderTimeClock();
+  }
   if(state.view==='ai') return renderAI();
   if(state.view==='calendar') return renderCalendar();
   if(state.view==='announcements') return renderAnnouncements();
@@ -2777,21 +2784,67 @@ function renderTimeClock(){
         </table>
       </div>
 
-      ${isAdmin ? `
+      ${(isAdmin||isLeader) ? `
       <div class="section" style="margin-top:32px">
         <div class="section-header">
           <div class="section-title">Registros de Todo o Time</div>
           <button class="btn btn-secondary btn-sm" id="loadAllTimeBtn">🔄 Carregar Registros</button>
         </div>
+        ${state.allUsersTimeRecords.length > 0 ? `
+        <div style="overflow-x:auto;margin-bottom:12px;background:var(--cream);border-radius:var(--radius);padding:12px 16px">
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+            <div>
+              <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Colaborador</div>
+              <select class="filter-select" id="timeFilterUser" style="min-width:150px;font-size:12px;padding:6px 10px">
+                <option value="">Todos</option>
+                ${state.users.filter(u=>u.role!=='admin').map(u=>`<option value="${u.id}" ${state.timeFilter.userId===u.id?'selected':''}>${u.name}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Data</div>
+              <input type="date" class="filter-select" id="timeFilterDate" value="${state.timeFilter.date||''}" style="font-size:12px;padding:6px 10px">
+            </div>
+            <div>
+              <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Entrada</div>
+              <input type="time" class="filter-select" id="timeFilterEntry" value="${state.timeFilter.entry||''}" style="font-size:12px;padding:6px 10px">
+            </div>
+            <div>
+              <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Saída Almoço</div>
+              <input type="time" class="filter-select" id="timeFilterLunchOut" value="${state.timeFilter.lunchOut||''}" style="font-size:12px;padding:6px 10px">
+            </div>
+            <div>
+              <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Retorno</div>
+              <input type="time" class="filter-select" id="timeFilterLunchIn" value="${state.timeFilter.lunchIn||''}" style="font-size:12px;padding:6px 10px">
+            </div>
+            <div>
+              <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Saída</div>
+              <input type="time" class="filter-select" id="timeFilterExit" value="${state.timeFilter.exit||''}" style="font-size:12px;padding:6px 10px">
+            </div>
+            <div>
+              <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Total Mín. (h)</div>
+              <input type="number" class="filter-select" id="timeFilterMinHours" value="${state.timeFilter.minHours||''}" placeholder="ex: 6" min="0" max="24" style="font-size:12px;padding:6px 10px;width:80px">
+            </div>
+            ${state.timeFilter.userId||state.timeFilter.date||state.timeFilter.entry||state.timeFilter.lunchOut||state.timeFilter.lunchIn||state.timeFilter.exit||state.timeFilter.minHours ?
+              `<button class="btn btn-secondary btn-sm" id="clearTimeFilter" style="margin-top:18px">✕ Limpar</button>` : ''}
+          </div>
+        </div>` : ''}
         ${state.allUsersTimeRecords.length === 0 ? 
           '<div style="font-size:13px;color:var(--muted);padding:20px;text-align:center">Clique em Carregar Registros para ver o ponto de todos.</div>' :
           `<div class="time-table"><table>
             <thead><tr><th>Colaborador</th><th>Data</th><th>Entrada</th><th>Saída Almoço</th><th>Retorno</th><th>Saída</th><th>Total</th><th></th></tr></thead>
             <tbody>
-              ${(state.allUsersTimeRecords.length > 0 ? state.allUsersTimeRecords : state.timeRecords).filter(r=>{
-                const d = new Date(r.date+'T12:00:00');
-                return d.getMonth()===state.timeViewMonth && d.getFullYear()===state.timeViewYear;
-              }).map(rec=>{
+              ${(()=>{
+                let recs = state.allUsersTimeRecords.length > 0 ? state.allUsersTimeRecords : state.timeRecords;
+                recs = recs.filter(r=>{ const d = new Date(r.date+'T12:00:00'); return d.getMonth()===state.timeViewMonth && d.getFullYear()===state.timeViewYear; });
+                if(state.timeFilter.userId) recs = recs.filter(r=>r.user_id===state.timeFilter.userId);
+                if(state.timeFilter.date) recs = recs.filter(r=>r.date===state.timeFilter.date);
+                if(state.timeFilter.entry) recs = recs.filter(r=>r.entry_time && formatTime(r.entry_time)>=state.timeFilter.entry);
+                if(state.timeFilter.lunchOut) recs = recs.filter(r=>r.lunch_out && formatTime(r.lunch_out)>=state.timeFilter.lunchOut);
+                if(state.timeFilter.lunchIn) recs = recs.filter(r=>r.lunch_in && formatTime(r.lunch_in)>=state.timeFilter.lunchIn);
+                if(state.timeFilter.exit) recs = recs.filter(r=>r.exit_time && formatTime(r.exit_time)>=state.timeFilter.exit);
+                if(state.timeFilter.minHours) recs = recs.filter(r=>(r.total_hours||calcHours(r)||0)>=parseFloat(state.timeFilter.minHours));
+                return recs;
+              })().map(rec=>{
                 const usr = getUserById(rec.user_id);
                 const h = rec.total_hours || calcHours(rec);
                 const dt = new Date(rec.date+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
@@ -3908,6 +3961,25 @@ function bindApp(){
 
 
 
+
+  // Time records filter
+  const timeFilterUser = document.getElementById('timeFilterUser');
+  if(timeFilterUser) timeFilterUser.onchange = e=>{ state.timeFilter.userId=e.target.value; render(); };
+  const timeFilterDate = document.getElementById('timeFilterDate');
+  if(timeFilterDate) timeFilterDate.onchange = e=>{ state.timeFilter.date=e.target.value; render(); };
+  const timeFilterEntry = document.getElementById('timeFilterEntry');
+  if(timeFilterEntry) timeFilterEntry.onchange = e=>{ state.timeFilter.entry=e.target.value; render(); };
+  const timeFilterLunchOut = document.getElementById('timeFilterLunchOut');
+  if(timeFilterLunchOut) timeFilterLunchOut.onchange = e=>{ state.timeFilter.lunchOut=e.target.value; render(); };
+  const timeFilterLunchIn = document.getElementById('timeFilterLunchIn');
+  if(timeFilterLunchIn) timeFilterLunchIn.onchange = e=>{ state.timeFilter.lunchIn=e.target.value; render(); };
+  const timeFilterExit = document.getElementById('timeFilterExit');
+  if(timeFilterExit) timeFilterExit.onchange = e=>{ state.timeFilter.exit=e.target.value; render(); };
+  const timeFilterMinHours = document.getElementById('timeFilterMinHours');
+  if(timeFilterMinHours) timeFilterMinHours.oninput = e=>{ state.timeFilter.minHours=e.target.value; render(); };
+  const clearTimeFilter = document.getElementById('clearTimeFilter');
+  if(clearTimeFilter) clearTimeFilter.onclick = ()=>{ state.timeFilter={userId:'',date:'',dept:'',entry:'',lunchOut:'',lunchIn:'',exit:'',minHours:''}; render(); };
+
   // Work schedule
   document.querySelectorAll('[data-edit-schedule]').forEach(el=>{
     el.onclick = ()=>{
@@ -4053,9 +4125,9 @@ function bindApp(){
   if(punchExit) punchExit.onclick = ()=>punch('exit');
 
   const timePrev = document.getElementById('timePrev');
-  if(timePrev) timePrev.onclick = ()=>{ state.timeViewMonth--; if(state.timeViewMonth<0){state.timeViewMonth=11;state.timeViewYear--;} render(); };
+  if(timePrev) timePrev.onclick = ()=>{ state.timeViewMonth--; if(state.timeViewMonth<0){state.timeViewMonth=11;state.timeViewYear--;} state.allUsersTimeRecords=[]; loadAllTimeRecords(); };
   const timeNext = document.getElementById('timeNext');
-  if(timeNext) timeNext.onclick = ()=>{ state.timeViewMonth++; if(state.timeViewMonth>11){state.timeViewMonth=0;state.timeViewYear++;} render(); };
+  if(timeNext) timeNext.onclick = ()=>{ state.timeViewMonth++; if(state.timeViewMonth>11){state.timeViewMonth=0;state.timeViewYear++;} state.allUsersTimeRecords=[]; loadAllTimeRecords(); };
 
   const exportTimeBtn = document.getElementById('exportTimeBtn');
   if(exportTimeBtn) exportTimeBtn.onclick = exportTimePDF;
