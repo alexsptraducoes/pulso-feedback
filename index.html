@@ -2717,10 +2717,13 @@ function renderTimeClock(){
       <div class="section-header">
         <div>
           <div class="section-title">Histórico de Ponto</div>
-          <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
-            <button class="cal-nav" id="timePrev" style="font-size:12px;padding:4px 10px">←</button>
-            <span style="font-size:13px;font-weight:600">${months[state.timeViewMonth]} ${state.timeViewYear}</span>
-            <button class="cal-nav" id="timeNext" style="font-size:12px;padding:4px 10px">→</button>
+          <div style="display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap">
+            <select class="filter-select" id="timeMonthSelect" style="font-size:13px;padding:6px 12px;font-weight:600">
+              ${[0,1,2,3,4,5,6,7,8,9,10,11].map(m=>`<option value="${m}" ${state.timeViewMonth===m?'selected':''}>${months[m]}</option>`).join('')}
+            </select>
+            <select class="filter-select" id="timeYearSelect" style="font-size:13px;padding:6px 12px;font-weight:600">
+              ${[new Date().getFullYear()-1, new Date().getFullYear(), new Date().getFullYear()+1].map(y=>`<option value="${y}" ${state.timeViewYear===y?'selected':''}>${y}</option>`).join('')}
+            </select>
           </div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
@@ -4124,10 +4127,10 @@ function bindApp(){
   const punchExit = document.getElementById('punchExit');
   if(punchExit) punchExit.onclick = ()=>punch('exit');
 
-  const timePrev = document.getElementById('timePrev');
-  if(timePrev) timePrev.onclick = ()=>{ state.timeViewMonth--; if(state.timeViewMonth<0){state.timeViewMonth=11;state.timeViewYear--;} state.allUsersTimeRecords=[]; loadAllTimeRecords(); };
-  const timeNext = document.getElementById('timeNext');
-  if(timeNext) timeNext.onclick = ()=>{ state.timeViewMonth++; if(state.timeViewMonth>11){state.timeViewMonth=0;state.timeViewYear++;} state.allUsersTimeRecords=[]; loadAllTimeRecords(); };
+  const timeMonthSelect = document.getElementById('timeMonthSelect');
+  if(timeMonthSelect) timeMonthSelect.onchange = e=>{ state.timeViewMonth=parseInt(e.target.value); state.allUsersTimeRecords=[]; loadAllTimeRecords(); };
+  const timeYearSelect = document.getElementById('timeYearSelect');
+  if(timeYearSelect) timeYearSelect.onchange = e=>{ state.timeViewYear=parseInt(e.target.value); state.allUsersTimeRecords=[]; loadAllTimeRecords(); };
 
   const exportTimeBtn = document.getElementById('exportTimeBtn');
   if(exportTimeBtn) exportTimeBtn.onclick = exportTimePDF;
