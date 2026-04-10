@@ -544,7 +544,7 @@ let state = {
   clockTime: new Date(),
   timeViewMonth: new Date().getMonth(),
   timeViewYear: new Date().getFullYear(),
-  timeFilter: { userId:'', date:'', dept:'', entry:'', lunchOut:'', lunchIn:'', exit:'', minHours:'' },
+  timeFilter: { userId:'', dateFrom:'', dateTo:'', entry:'', lunchOut:'', lunchIn:'', exit:'', minHours:'' },
   showEditTimeModal: false,
   editTimeForm: { id:'', user_name:'', date:'', entry_time:'', lunch_out:'', lunch_in:'', exit_time:'' },
   allUsersTimeRecords: [],
@@ -2804,8 +2804,12 @@ function renderTimeClock(){
               </select>
             </div>
             <div>
-              <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Data</div>
-              <input type="date" class="filter-select" id="timeFilterDate" value="${state.timeFilter.date||''}" style="font-size:12px;padding:6px 10px">
+              <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Data Inicial</div>
+              <input type="date" class="filter-select" id="timeFilterDateFrom" value="${state.timeFilter.dateFrom||''}" style="font-size:12px;padding:6px 10px">
+            </div>
+            <div>
+              <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Data Final</div>
+              <input type="date" class="filter-select" id="timeFilterDateTo" value="${state.timeFilter.dateTo||''}" style="font-size:12px;padding:6px 10px">
             </div>
             <div>
               <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Entrada</div>
@@ -2827,7 +2831,7 @@ function renderTimeClock(){
               <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Total Mín. (h)</div>
               <input type="number" class="filter-select" id="timeFilterMinHours" value="${state.timeFilter.minHours||''}" placeholder="ex: 6" min="0" max="24" style="font-size:12px;padding:6px 10px;width:80px">
             </div>
-            ${state.timeFilter.userId||state.timeFilter.date||state.timeFilter.entry||state.timeFilter.lunchOut||state.timeFilter.lunchIn||state.timeFilter.exit||state.timeFilter.minHours ?
+            ${state.timeFilter.userId||state.timeFilter.dateFrom||state.timeFilter.dateTo||state.timeFilter.entry||state.timeFilter.lunchOut||state.timeFilter.lunchIn||state.timeFilter.exit||state.timeFilter.minHours ?
               `<button class="btn btn-secondary btn-sm" id="clearTimeFilter" style="margin-top:18px">✕ Limpar</button>` : ''}
           </div>
         </div>` : ''}
@@ -2840,7 +2844,8 @@ function renderTimeClock(){
                 let recs = state.allUsersTimeRecords.length > 0 ? state.allUsersTimeRecords : state.timeRecords;
                 recs = recs.filter(r=>{ const d = new Date(r.date+'T12:00:00'); return d.getMonth()===state.timeViewMonth && d.getFullYear()===state.timeViewYear; });
                 if(state.timeFilter.userId) recs = recs.filter(r=>r.user_id===state.timeFilter.userId);
-                if(state.timeFilter.date) recs = recs.filter(r=>r.date===state.timeFilter.date);
+                if(state.timeFilter.dateFrom) recs = recs.filter(r=>r.date>=state.timeFilter.dateFrom);
+                if(state.timeFilter.dateTo) recs = recs.filter(r=>r.date<=state.timeFilter.dateTo);
                 if(state.timeFilter.entry) recs = recs.filter(r=>r.entry_time && formatTime(r.entry_time)>=state.timeFilter.entry);
                 if(state.timeFilter.lunchOut) recs = recs.filter(r=>r.lunch_out && formatTime(r.lunch_out)>=state.timeFilter.lunchOut);
                 if(state.timeFilter.lunchIn) recs = recs.filter(r=>r.lunch_in && formatTime(r.lunch_in)>=state.timeFilter.lunchIn);
@@ -3968,8 +3973,10 @@ function bindApp(){
   // Time records filter
   const timeFilterUser = document.getElementById('timeFilterUser');
   if(timeFilterUser) timeFilterUser.onchange = e=>{ state.timeFilter.userId=e.target.value; render(); };
-  const timeFilterDate = document.getElementById('timeFilterDate');
-  if(timeFilterDate) timeFilterDate.onchange = e=>{ state.timeFilter.date=e.target.value; render(); };
+  const timeFilterDateFrom = document.getElementById('timeFilterDateFrom');
+  if(timeFilterDateFrom) timeFilterDateFrom.onchange = e=>{ state.timeFilter.dateFrom=e.target.value; render(); };
+  const timeFilterDateTo = document.getElementById('timeFilterDateTo');
+  if(timeFilterDateTo) timeFilterDateTo.onchange = e=>{ state.timeFilter.dateTo=e.target.value; render(); };
   const timeFilterEntry = document.getElementById('timeFilterEntry');
   if(timeFilterEntry) timeFilterEntry.onchange = e=>{ state.timeFilter.entry=e.target.value; render(); };
   const timeFilterLunchOut = document.getElementById('timeFilterLunchOut');
@@ -3981,7 +3988,7 @@ function bindApp(){
   const timeFilterMinHours = document.getElementById('timeFilterMinHours');
   if(timeFilterMinHours) timeFilterMinHours.oninput = e=>{ state.timeFilter.minHours=e.target.value; render(); };
   const clearTimeFilter = document.getElementById('clearTimeFilter');
-  if(clearTimeFilter) clearTimeFilter.onclick = ()=>{ state.timeFilter={userId:'',date:'',dept:'',entry:'',lunchOut:'',lunchIn:'',exit:'',minHours:''}; render(); };
+  if(clearTimeFilter) clearTimeFilter.onclick = ()=>{ state.timeFilter={userId:'',dateFrom:'',dateTo:'',entry:'',lunchOut:'',lunchIn:'',exit:'',minHours:''}; render(); };
 
   // Work schedule
   document.querySelectorAll('[data-edit-schedule]').forEach(el=>{
