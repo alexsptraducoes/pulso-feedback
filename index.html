@@ -2877,6 +2877,52 @@ function renderTimeClock(){
               }).join('')}
             </tbody>
           </table></div>`}
+
+        ${state.allUsersTimeRecords.length > 0 ? `
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px">
+          ${(()=>{
+            let recs = state.allUsersTimeRecords;
+            if(state.timeFilter.userId) recs = recs.filter(r=>r.user_id===state.timeFilter.userId);
+            if(state.timeFilter.dateFrom) recs = recs.filter(r=>r.date>=state.timeFilter.dateFrom);
+            if(state.timeFilter.dateTo) recs = recs.filter(r=>r.date<=state.timeFilter.dateTo);
+            const completed = recs.filter(r=>r.entry_time&&r.exit_time);
+            // Extra hours per record
+            let totalExtra = 0;
+            let totalDebt = 0;
+            let totalLateMinutes = 0;
+            completed.forEach(r=>{
+              const userId = r.user_id;
+              const userWH = getWorkHours(userId);
+              const h = calcHours(r)||0;
+              const diff = h - userWH;
+              if(diff > 0) totalExtra += diff;
+              else totalDebt += Math.abs(diff);
+              // Late minutes
+              if(r.entry_time){
+                const entryD = new Date(r.entry_time);
+                const userStart = getWorkStart(userId);
+                const startMins = userStart * 60;
+                const entryMins = entryD.getHours()*60 + entryD.getMinutes();
+                if(entryMins > startMins + 5) totalLateMinutes += entryMins - startMins;
+              }
+            });
+            const fmtH = v=>{ const h=Math.floor(v); const m=Math.round((v-h)*60); return h+'h'+(m>0?m+'min':''); };
+            const fmtM = m=>{ const h=Math.floor(m/60); const min=m%60; return h+'h'+(min>0?min+'min':''); };
+            return `
+              <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;box-shadow:var(--shadow)">
+                <div style="font-family:'Fraunces',serif;font-size:28px;font-weight:700;color:var(--positive)">+${fmtH(totalExtra)}</div>
+                <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:4px">Total Horas Extras</div>
+              </div>
+              <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;box-shadow:var(--shadow)">
+                <div style="font-family:'Fraunces',serif;font-size:28px;font-weight:700;color:var(--constructive)">-${fmtH(totalDebt)}</div>
+                <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:4px">Total Horas em Débito</div>
+              </div>
+              <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;box-shadow:var(--shadow)">
+                <div style="font-family:'Fraunces',serif;font-size:28px;font-weight:700;color:#856404">${fmtM(totalLateMinutes)}</div>
+                <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:4px">Total Atrasos Acumulados</div>
+              </div>`;
+          })()}
+        </div>` : ''}
       </div>` : ''}
 
     <div class="section" style="margin-top:24px">
