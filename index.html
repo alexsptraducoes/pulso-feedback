@@ -1146,6 +1146,82 @@ function formatBalance(hours){
   return sign+h+'h'+(m>0?m+'min':'');
 }
 
+
+function exportColabTimePDF(userId){
+  const u = state.users.find(x=>x.id===userId);
+  if(!u){ showToast('Colaborador não encontrado.'); return; }
+  const months = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const m = state.timeViewMonth;
+  const y = state.timeViewYear;
+  const allRecs = state.allUsersTimeRecords.length>0 ? state.allUsersTimeRecords : state.timeRecords;
+  const recs = allRecs
+    .filter(r=>r.user_id===userId)
+    .filter(r=>{ const d=new Date(r.date+'T12:00:00'); return d.getMonth()===m && d.getFullYear()===y; })
+    .sort((a,b)=>a.date.localeCompare(b.date));
+  const sched = getUserSchedule(userId);
+  const userWH = getWorkHours(userId);
+  const userStart = getWorkStart(userId);
+  let totalWorked=0, totalExtra=0, totalDebt=0, lateCount=0;
+  const rows = recs.map(r=>{
+    const dt = new Date(r.date+'T12:00:00');
+    const dateStr = dt.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'});
+    const h = r.total_hours || calcHours(r) || null;
+    if(h) totalWorked += h;
+    const diff = h ? h - userWH : null;
+    if(diff!==null){ if(diff>0) totalExtra+=diff; else totalDebt+=Math.abs(diff); }
+    const isLate = r.entry_time && (new Date(r.entry_time).getHours()>userStart||(new Date(r.entry_time).getHours()===userStart&&new Date(r.entry_time).getMinutes()>5));
+    if(isLate) lateCount++;
+    return '<tr style="background:'+(isLate?'#fff8f8':'')+'">'
+      +'<td>'+dateStr+'</td>'
+      +'<td>'+formatTime(r.entry_time)+(isLate?' <b style="color:#c44b2b;font-size:9px">ATRASO</b>':'')+'</td>'
+      +'<td>'+formatTime(r.lunch_out)+'</td>'
+      +'<td>'+formatTime(r.lunch_in)+'</td>'
+      +'<td>'+formatTime(r.exit_time)+'</td>'
+      +'<td style="text-align:center;font-weight:700">'+(h?h.toFixed(1)+'h':'—')+'</td>'
+      +'<td style="text-align:center;font-weight:700;color:'+(diff===null?'#aaa':diff>=0?'#2d6a4f':'#c44b2b')+'">'+( diff===null?'—':(diff>=0?'+':'')+diff.toFixed(1)+'h')+'</td>'
+      +'</tr>';
+  }).join('');
+  const saldo = totalExtra - totalDebt;
+  const expectedTotal = recs.filter(r=>r.entry_time&&r.exit_time).length * userWH;
+  const win = window.open('','_blank');
+  if(!win){ showToast('Permita pop-ups para gerar o relatório.'); return; }
+  const saldoColor = saldo>=0?'#2d6a4f':'#c44b2b';
+  win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Relatorio '+u.name+'</title>'
+    +'<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;padding:36px;font-size:12px}'
+    +'.hdr{display:flex;justify-content:space-between;padding-bottom:16px;border-bottom:3px solid #11008d;margin-bottom:20px}'
+    +'.brand h1{font-size:20px;color:#11008d;font-weight:700}.brand h2{font-size:11px;color:#e65c38;margin-top:3px}'
+    +'.info{text-align:right;font-size:11px;color:#555;line-height:1.7}.info strong{font-size:14px;color:#000;display:block}'
+    +'.jornada{background:#f5f0e8;border-left:4px solid #11008d;padding:8px 14px;border-radius:4px;margin-bottom:16px;font-size:11px}'
+    +'.cards{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px}'
+    +'.card{background:#f5f0e8;border-radius:6px;padding:12px 8px;text-align:center}'
+    +'.card-num{font-size:20px;font-weight:700}.card-label{font-size:9px;color:#888;text-transform:uppercase;margin-top:3px}'
+    +'table{width:100%;border-collapse:collapse;margin-bottom:24px}'
+    +'thead th{background:#11008d;color:white;padding:8px 10px;font-size:10px;text-transform:uppercase;text-align:left}'
+    +'thead th:nth-child(6),thead th:nth-child(7){text-align:center}'
+    +'tbody td{padding:7px 10px;border-bottom:1px solid #e8e3d8;font-size:11px}'
+    +'.signs{display:grid;grid-template-columns:1fr 1fr;gap:60px;margin-top:36px}'
+    +'.sign-line{border-top:1.5px solid #000;margin-top:50px;padding-top:8px;text-align:center;font-size:10px;color:#555}'
+    +'.footer{margin-top:24px;padding-top:10px;border-top:1px solid #ddd;text-align:center;font-size:9px;color:#aaa}'
+    +'@media print{@page{margin:15mm}}</style></head><body>'
+    +'<div class="hdr"><div class="brand"><h1>SP TRADUÇÕES</h1><h2>FLOW · Relatório de Ponto Eletrônico</h2></div>'
+    +'<div class="info"><strong>'+u.name+'</strong>'+(u.department||'')+' · '+months[m]+' de '+y+'<br>Gerado em '+new Date().toLocaleDateString('pt-BR')+'</div></div>'
+    +'<div class="jornada">⏰ Jornada: <strong>'+sched.entry_time.slice(0,5)+' às '+sched.exit_time.slice(0,5)+'</strong> &nbsp;·&nbsp; Intervalo: <strong>'+sched.lunch_hours+'h</strong> &nbsp;·&nbsp; Meta: <strong>'+userWH+'h/dia</strong></div>'
+    +'<div class="cards">'
+    +'<div class="card" style="border-top:3px solid #11008d"><div class="card-num" style="color:#11008d">'+totalWorked.toFixed(1)+'h</div><div class="card-label">Trabalhadas</div></div>'
+    +'<div class="card" style="border-top:3px solid #555"><div class="card-num" style="color:#555">'+expectedTotal.toFixed(0)+'h</div><div class="card-label">Esperadas</div></div>'
+    +'<div class="card" style="border-top:3px solid #2d6a4f"><div class="card-num" style="color:#2d6a4f">+'+totalExtra.toFixed(1)+'h</div><div class="card-label">Horas Extras</div></div>'
+    +'<div class="card" style="border-top:3px solid #c44b2b"><div class="card-num" style="color:#c44b2b">-'+totalDebt.toFixed(1)+'h</div><div class="card-label">Horas Débito</div></div>'
+    +'<div class="card" style="border-top:3px solid '+saldoColor+'"><div class="card-num" style="color:'+saldoColor+'">'+(saldo>=0?'+':'')+saldo.toFixed(1)+'h</div><div class="card-label">Saldo Final</div></div>'
+    +'</div>'
+    +'<table><thead><tr><th>Data</th><th>Entrada</th><th>Saída Almoço</th><th>Retorno</th><th>Saída</th><th>Total</th><th>Saldo Dia</th></tr></thead>'
+    +'<tbody>'+(rows||'<tr><td colspan="7" style="text-align:center;padding:20px;color:#888">Nenhum registro neste mês</td></tr>')+'</tbody></table>'
+    +'<div class="signs"><div><div class="sign-line">'+u.name+'<br>Colaborador(a)</div></div><div><div class="sign-line">Responsável / Gestor(a)</div></div></div>'
+    +'<div class="footer">SP Traduções · FLOW · flow-sptraducoes.vercel.app · '+new Date().toLocaleString('pt-BR')+'</div>'
+    +'</body></html>');
+  win.document.close();
+  setTimeout(function(){ win.print(); }, 800);
+}
+
 function exportTimePDF(){
   const u = state.currentUser;
   const months = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
