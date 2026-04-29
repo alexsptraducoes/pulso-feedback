@@ -3018,12 +3018,16 @@ function renderTimeClock(){
                 <div style="font-family:'Fraunces',serif;font-size:28px;font-weight:700;color:#856404">${fmtM(totalLateMinutes)}</div>
                 <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:4px">Total Atrasos Acumulados</div>
               </div>
-              <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;box-shadow:var(--shadow);border-top:3px solid ${(totalExtra-totalDebt)>=0?'var(--positive)':'var(--constructive)'}">
-                <div style="font-family:'Fraunces',serif;font-size:28px;font-weight:700;color:${(totalExtra-totalDebt)>=0?'var(--positive)':'var(--constructive)'}">
-                  ${(totalExtra-totalDebt)>=0?'+':''}${fmtH(Math.abs(totalExtra-totalDebt))}
-                </div>
-                <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:4px">Saldo Final</div>
-              </div>`;
+              ${(()=>{
+                const saldoFinal = totalExtra - totalDebt - (totalLateMinutes/60);
+                const saldoColor = saldoFinal>=0?'var(--positive)':'var(--constructive)';
+                return `<div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;box-shadow:var(--shadow);border-top:3px solid ${saldoColor}">
+                  <div style="font-family:'Fraunces',serif;font-size:28px;font-weight:700;color:${saldoColor}">
+                    ${saldoFinal>=0?'+':''}${fmtH(Math.abs(saldoFinal))}
+                  </div>
+                  <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:4px">Saldo Final</div>
+                </div>`;
+              })()}`;
           })()}
         </div>` : ''}
 
