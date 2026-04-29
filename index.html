@@ -1181,7 +1181,10 @@ function exportColabTimePDF(userId){
       +'<td style="text-align:center;font-weight:700;color:'+(diff===null?'#aaa':diff>=0?'#2d6a4f':'#c44b2b')+'">'+( diff===null?'—':(diff>=0?'+':'')+diff.toFixed(1)+'h')+'</td>'
       +'</tr>';
   }).join('');
-  const saldo = totalExtra - totalDebt;
+  // Late minutes
+  let totalLateMin = 0;
+  recs.forEach(r=>{ if(r.entry_time){ const d=new Date(r.entry_time); const s=userStart*60; const e=d.getHours()*60+d.getMinutes(); if(e>s+5) totalLateMin+=e-s; }});
+  const saldo = totalExtra - totalDebt - (totalLateMin/60);
   const expectedTotal = recs.filter(r=>r.entry_time&&r.exit_time).length * userWH;
   const win = window.open('','_blank');
   if(!win){ showToast('Permita pop-ups para gerar o relatório.'); return; }
