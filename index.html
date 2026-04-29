@@ -456,6 +456,11 @@ body{font-family:'DM Sans',sans-serif;background:#ede8dc;color:var(--ink);min-he
 .ai-suggestions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
 .ai-suggestion{padding:6px 14px;background:var(--cream);border:1px solid var(--border);border-radius:20px;font-size:12px;cursor:pointer;transition:all .15s;color:var(--ink)}
 .ai-suggestion:hover{background:#11008d;color:white;border-color:#11008d}
+
+/* ANNOUNCEMENT ATTACHMENTS */
+.ann-image{width:100%;max-height:400px;object-fit:contain;border-radius:var(--radius-sm);margin-top:12px;cursor:pointer}
+.ann-file-link{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:var(--cream);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px;color:var(--ink);text-decoration:none;margin-top:10px}
+.ann-file-link:hover{background:var(--border)}
 </style>
 </head>
 <body>
@@ -521,7 +526,7 @@ let state = {
   messages: [],
   announcements: [],
   showAnnModal: false,
-  annForm: { title:'', content:'', priority:'normal' },
+  annForm: { title:'', content:'', priority:'normal', file: null, attachment_url: '' },
   polls: [],
   pollVotes: [],
   showPollModal: false,
@@ -1209,6 +1214,11 @@ function exportTimePDF(){
 .ai-suggestions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
 .ai-suggestion{padding:6px 14px;background:var(--cream);border:1px solid var(--border);border-radius:20px;font-size:12px;cursor:pointer;transition:all .15s;color:var(--ink)}
 .ai-suggestion:hover{background:#11008d;color:white;border-color:#11008d}
+
+/* ANNOUNCEMENT ATTACHMENTS */
+.ann-image{width:100%;max-height:400px;object-fit:contain;border-radius:var(--radius-sm);margin-top:12px;cursor:pointer}
+.ann-file-link{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:var(--cream);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px;color:var(--ink);text-decoration:none;margin-top:10px}
+.ann-file-link:hover{background:var(--border)}
 </style></head><body>
   <h1>SP Traduções · Relatório de Ponto</h1>
   <h2>${u.name} · ${months[m]} ${y}</h2>
@@ -1765,6 +1775,11 @@ function exportPDF(){
 .ai-suggestions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
 .ai-suggestion{padding:6px 14px;background:var(--cream);border:1px solid var(--border);border-radius:20px;font-size:12px;cursor:pointer;transition:all .15s;color:var(--ink)}
 .ai-suggestion:hover{background:#11008d;color:white;border-color:#11008d}
+
+/* ANNOUNCEMENT ATTACHMENTS */
+.ann-image{width:100%;max-height:400px;object-fit:contain;border-radius:var(--radius-sm);margin-top:12px;cursor:pointer}
+.ann-file-link{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:var(--cream);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px;color:var(--ink);text-decoration:none;margin-top:10px}
+.ann-file-link:hover{background:var(--border)}
 </style></head><body>
   <h1>SP Traduções · Relatório de Feedback</h1>
   <p style="color:#7a7166">${monthName} · Gerado em ${now.toLocaleDateString('pt-BR')}</p>
@@ -2549,6 +2564,8 @@ function renderAnnouncements(){
             <span class="ann-priority ${a.priority}">${a.priority==='urgent' ? '⚠ Urgente' : '📋 Informativo'}</span>
             <div class="ann-title">${a.title}</div>
             <div class="ann-content">${a.content}</div>
+      ${a.attachment_url && a.attachment_type==='image' ? `<img src="${a.attachment_url}" class="ann-image" onclick="window.open('${a.attachment_url}','_blank')">` : ''}
+      ${a.attachment_url && a.attachment_type==='file' ? `<a href="${a.attachment_url}" target="_blank" class="ann-file-link">📎 Ver anexo</a>` : ''}
             <div class="ann-footer">
               <div class="ann-date">${fmt(a.created_at)}</div>
               ${isAdmin ? `<button class="btn btn-danger btn-sm" data-delete-ann="${a.id}" data-delete-ann-title="${a.title.replace(/"/g,'&quot;')}">🗑 Excluir</button>` : ''}
@@ -2870,7 +2887,8 @@ function renderTimeClock(){
                   <td>${formatTime(rec.exit_time)}</td>
                   <td><span class="hours-badge ${h>=WORK_HOURS?'hours-ok':h>=6?'hours-partial':'hours-low'}">${h?h.toFixed(1)+'h':'—'}</span></td>
                   <td style="display:flex;gap:4px">
-                    <button class="btn btn-secondary btn-sm" data-edit-time="${rec.id}" data-edit-time-user="${usr?.name||'?'}" data-edit-time-date="${rec.date}" data-edit-entry="${formatTime(rec.entry_time).replace('—','')}" data-edit-lunch-out="${formatTime(rec.lunch_out).replace('—','')}" data-edit-lunch-in="${formatTime(rec.lunch_in).replace('—','')}" data-edit-exit="${formatTime(rec.exit_time).replace('—','')}">✏️</button>
+                    <button class="btn btn-secondary btn-sm" onclick="exportColabTimePDF('${rec.user_id}')">📄</button>
+                  <button class="btn btn-secondary btn-sm" data-edit-time="${rec.id}" data-edit-time-user="${usr?.name||'?'}" data-edit-time-date="${rec.date}" data-edit-entry="${formatTime(rec.entry_time).replace('—','')}" data-edit-lunch-out="${formatTime(rec.lunch_out).replace('—','')}" data-edit-lunch-in="${formatTime(rec.lunch_in).replace('—','')}" data-edit-exit="${formatTime(rec.exit_time).replace('—','')}">✏️</button>
                     <button class="btn btn-danger btn-sm" data-delete-time="${rec.id}">🗑</button>
                   </td>
                 </tr>`;
@@ -2879,7 +2897,7 @@ function renderTimeClock(){
           </table></div>`}
 
         ${state.allUsersTimeRecords.length > 0 ? `
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px">
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px">
           ${(()=>{
             let recs = state.allUsersTimeRecords;
             if(state.timeFilter.userId) recs = recs.filter(r=>r.user_id===state.timeFilter.userId);
@@ -2920,6 +2938,12 @@ function renderTimeClock(){
               <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;box-shadow:var(--shadow)">
                 <div style="font-family:'Fraunces',serif;font-size:28px;font-weight:700;color:#856404">${fmtM(totalLateMinutes)}</div>
                 <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:4px">Total Atrasos Acumulados</div>
+              </div>
+              <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;box-shadow:var(--shadow);border-top:3px solid ${(totalExtra-totalDebt)>=0?'var(--positive)':'var(--constructive)'}">
+                <div style="font-family:'Fraunces',serif;font-size:28px;font-weight:700;color:${(totalExtra-totalDebt)>=0?'var(--positive)':'var(--constructive)'}">
+                  ${(totalExtra-totalDebt)>=0?'+':''}${fmtH(Math.abs(totalExtra-totalDebt))}
+                </div>
+                <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:4px">Saldo Final</div>
               </div>`;
           })()}
         </div>` : ''}
