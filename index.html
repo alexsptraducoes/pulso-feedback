@@ -2887,7 +2887,7 @@ function renderTimeClock(){
                   <td>${formatTime(rec.exit_time)}</td>
                   <td><span class="hours-badge ${h>=WORK_HOURS?'hours-ok':h>=6?'hours-partial':'hours-low'}">${h?h.toFixed(1)+'h':'—'}</span></td>
                   <td style="display:flex;gap:4px">
-                    <button class="btn btn-secondary btn-sm" onclick="exportColabTimePDF('${rec.user_id}')">📄</button>
+                    <button class="btn btn-secondary btn-sm" data-colab-report="${rec.user_id}" title="Relatório PDF">📄</button>
                   <button class="btn btn-secondary btn-sm" data-edit-time="${rec.id}" data-edit-time-user="${usr?.name||'?'}" data-edit-time-date="${rec.date}" data-edit-entry="${formatTime(rec.entry_time).replace('—','')}" data-edit-lunch-out="${formatTime(rec.lunch_out).replace('—','')}" data-edit-lunch-in="${formatTime(rec.lunch_in).replace('—','')}" data-edit-exit="${formatTime(rec.exit_time).replace('—','')}">✏️</button>
                     <button class="btn btn-danger btn-sm" data-delete-time="${rec.id}">🗑</button>
                   </td>
@@ -2946,6 +2946,11 @@ function renderTimeClock(){
                 <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:4px">Saldo Final</div>
               </div>`;
           })()}
+        </div>` : ''}
+
+        ${state.timeFilter.userId ? `
+        <div style="margin-top:12px;text-align:right">
+          <button class="btn btn-primary" data-colab-report="${state.timeFilter.userId}">📄 Gerar Relatório PDF — ${(state.users.find(u=>u.id===state.timeFilter.userId)||{}).name||''}</button>
         </div>` : ''}
       </div>` : ''}
 
@@ -4039,6 +4044,12 @@ function bindApp(){
 
 
 
+
+
+  // Collaborator PDF report
+  document.querySelectorAll('[data-colab-report]').forEach(el=>{
+    el.onclick = ()=>{ exportColabTimePDF(el.dataset.colabReport); };
+  });
 
   // Time records filter
   const timeFilterUser = document.getElementById('timeFilterUser');
