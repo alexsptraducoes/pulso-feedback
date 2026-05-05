@@ -663,12 +663,14 @@ async function loadData(){
   state.notifications = dbNotifs || [];
   // Load time records
   const todayStr2 = new Date().toISOString().slice(0,10);
-  // Load time records - admin/leader see all, employee sees own
-  let timeQuery = sb.from('time_records').select('*').order('date', { ascending: false });
+  // Load time records - load last 6 months for all users
+  const sixMonthsAgo = new Date(); sixMonthsAgo.setMonth(sixMonthsAgo.getMonth()-6);
+  const sixMonthsAgoStr = sixMonthsAgo.toISOString().slice(0,10);
+  let timeQuery = sb.from('time_records').select('*').gte('date', sixMonthsAgoStr).order('date', { ascending: false });
   if(state.currentUser.role === 'employee'){
-    timeQuery = timeQuery.eq('user_id', state.currentUser.id).limit(60);
+    timeQuery = timeQuery.eq('user_id', state.currentUser.id);
   } else if(state.currentUser.role === 'admin' || state.currentUser.role === 'manager'){
-    timeQuery = timeQuery.limit(500);
+    // Admin sees all - no additional filter
   } else if(state.currentUser.role === 'leader'){
     // Leader sees their team
     const teamIds = (state.users||[]).filter(u=>u.role==='employee'&&u.department===state.currentUser.department).map(u=>u.id);
