@@ -1111,6 +1111,26 @@ function formatTime(iso){
   return new Date(iso).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
 }
 
+function formatHMS(decimalHours){
+  if(!decimalHours && decimalHours !== 0) return '—';
+  const totalSecs = Math.round(Math.abs(decimalHours) * 3600);
+  const h = Math.floor(totalSecs / 3600);
+  const m = Math.floor((totalSecs % 3600) / 60);
+  const s = totalSecs % 60;
+  const sign = decimalHours < 0 ? '-' : '';
+  return sign + String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+}
+
+function formatHMSsigned(decimalHours){
+  if(!decimalHours && decimalHours !== 0) return '—';
+  const sign = decimalHours >= 0 ? '+' : '-';
+  const totalSecs = Math.round(Math.abs(decimalHours) * 3600);
+  const h = Math.floor(totalSecs / 3600);
+  const m = Math.floor((totalSecs % 3600) / 60);
+  const s = totalSecs % 60;
+  return sign + String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+}
+
 function calcHours(rec){
   if(!rec || !rec.entry_time || !rec.exit_time) return null;
   const entry = new Date(rec.entry_time);
@@ -1140,13 +1160,7 @@ function calcBalance(recs){
   return { totalWorked:Math.round(totalWorked*100)/100, totalExpected, balance:Math.round(balance*100)/100, lateDays, overtimeDays, days:completed.length };
 }
 
-function formatBalance(hours){
-  const abs = Math.abs(hours);
-  const h = Math.floor(abs);
-  const m = Math.round((abs-h)*60);
-  const sign = hours>=0?'+':'-';
-  return sign+h+'h'+(m>0?m+'min':'');
-}
+function formatBalance(hours){ return formatHMSsigned(hours); }
 
 
 function exportColabTimePDF(userId){
@@ -1179,7 +1193,7 @@ function exportColabTimePDF(userId){
       +'<td>'+formatTime(r.lunch_out)+'</td>'
       +'<td>'+formatTime(r.lunch_in)+'</td>'
       +'<td>'+formatTime(r.exit_time)+'</td>'
-      +'<td style="text-align:center;font-weight:700">'+(h?h.toFixed(1)+'h':'—')+'</td>'
+      +'<td style="text-align:center;font-weight:700">'+(h?formatHMS(h):'—')+'</td>'
       +'<td style="text-align:center;font-weight:700;color:'+(diff===null?'#aaa':diff>=0?'#2d6a4f':'#c44b2b')+'">'+( diff===null?'—':(diff>=0?'+':'')+diff.toFixed(1)+'h')+'</td>'
       +'</tr>';
   }).join('');
@@ -2784,15 +2798,15 @@ function renderTimeClock(){
 
     <div class="boh-grid">
       <div class="boh-card">
-        <div class="boh-number boh-neutral">${todayHours?todayHours.toFixed(1)+'h':'—'}</div>
+        <div class="boh-number boh-neutral">${todayHours?formatHMS(todayHours):'—'}</div>
         <div class="boh-label">Horas Hoje</div>
       </div>
       <div class="boh-card">
-        <div class="boh-number ${balance.balance>=0?'boh-positive':'boh-negative'}">${formatBalance(balance.balance)}</div>
+        <div class="boh-number ${balance.balance>=0?'boh-positive':'boh-negative'}">${formatHMSsigned(balance.balance)}</div>
         <div class="boh-label">Banco de Horas</div>
       </div>
       <div class="boh-card">
-        <div class="boh-number boh-neutral">${totalMonthHours.toFixed(1)}h</div>
+        <div class="boh-number boh-neutral">${formatHMS(totalMonthHours)}</div>
         <div class="boh-label">Total no Mês</div>
       </div>
     </div>
@@ -2825,7 +2839,7 @@ function renderTimeClock(){
           </div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
-          <span style="font-size:13px;color:var(--muted)">${totalMonthHours.toFixed(1)}h no mês</span>
+          <span style="font-size:13px;color:var(--muted)">${formatHMS(totalMonthHours)} no mês</span>
           <button class="btn btn-secondary btn-sm" id="exportTimeBtn">📄 PDF</button>
         </div>
       </div>
@@ -2873,7 +2887,7 @@ function renderTimeClock(){
                 <td>${formatTime(rec.lunch_in)}</td>
                 <td>${formatTime(rec.exit_time)}</td>
                 <td>
-                  <span class="hours-badge ${h>=WORK_HOURS?'hours-ok':h>=6?'hours-partial':'hours-low'}">${h?h.toFixed(1)+'h':'—'}</span>
+                  <span class="hours-badge ${h>=WORK_HOURS?'hours-ok':h>=6?'hours-partial':'hours-low'}">${h?formatHMS(h):'—'}</span>
                   ${h?`<span style="font-size:11px;color:${h>=WORK_HOURS?'var(--positive)':'var(--constructive)'}">${formatBalance(h-WORK_HOURS)}</span>`:''}
                   ${isAdmin?`
                     <button class="btn btn-secondary btn-sm" style="margin-left:6px" data-edit-time="${rec.id}" data-edit-time-user="${u.name}" data-edit-time-date="${rec.date}" data-edit-entry="${formatTime(rec.entry_time).replace('—','')}" data-edit-lunch-out="${formatTime(rec.lunch_out).replace('—','')}" data-edit-lunch-in="${formatTime(rec.lunch_in).replace('—','')}" data-edit-exit="${formatTime(rec.exit_time).replace('—','')}">✏️</button>
@@ -2966,7 +2980,7 @@ function renderTimeClock(){
                   <td>${formatTime(rec.lunch_out)}</td>
                   <td>${formatTime(rec.lunch_in)}</td>
                   <td>${formatTime(rec.exit_time)}</td>
-                  <td><span class="hours-badge ${h>=WORK_HOURS?'hours-ok':h>=6?'hours-partial':'hours-low'}">${h?h.toFixed(1)+'h':'—'}</span></td>
+                  <td><span class="hours-badge ${h>=WORK_HOURS?'hours-ok':h>=6?'hours-partial':'hours-low'}">${h?formatHMS(h):'—'}</span></td>
                   <td style="display:flex;gap:4px">
                     <button class="btn btn-secondary btn-sm" data-colab-report="${rec.user_id}" title="Relatório PDF">📄</button>
                   <button class="btn btn-secondary btn-sm" data-edit-time="${rec.id}" data-edit-time-user="${usr?.name||'?'}" data-edit-time-date="${rec.date}" data-edit-entry="${formatTime(rec.entry_time).replace('—','')}" data-edit-lunch-out="${formatTime(rec.lunch_out).replace('—','')}" data-edit-lunch-in="${formatTime(rec.lunch_in).replace('—','')}" data-edit-exit="${formatTime(rec.exit_time).replace('—','')}">✏️</button>
@@ -3005,8 +3019,8 @@ function renderTimeClock(){
                 if(entryMins > startMins + 5) totalLateMinutes += entryMins - startMins;
               }
             });
-            const fmtH = v=>{ const h=Math.floor(v); const m=Math.round((v-h)*60); return h+'h'+(m>0?m+'min':''); };
-            const fmtM = m=>{ const h=Math.floor(m/60); const min=m%60; return h+'h'+(min>0?min+'min':''); };
+            const fmtH = v=>formatHMS(v);
+            const fmtM = m=>formatHMS(m/60);
             return `
               <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;box-shadow:var(--shadow)">
                 <div style="font-family:'Fraunces',serif;font-size:28px;font-weight:700;color:var(--positive)">+${fmtH(totalExtra)}</div>
@@ -3025,7 +3039,7 @@ function renderTimeClock(){
                 const saldoColor = saldoFinal>=0?'var(--positive)':'var(--constructive)';
                 return `<div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;box-shadow:var(--shadow);border-top:3px solid ${saldoColor}">
                   <div style="font-family:'Fraunces',serif;font-size:28px;font-weight:700;color:${saldoColor}">
-                    ${saldoFinal>=0?'+':''}${fmtH(Math.abs(saldoFinal))}
+                    ${formatHMSsigned(saldoFinal)}
                   </div>
                   <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:4px">Saldo Final</div>
                 </div>`;
