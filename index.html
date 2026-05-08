@@ -1145,19 +1145,31 @@ function calcHours(rec){
 
 function calcBalance(recs){
   const completed = recs.filter(r=>r.entry_time && r.exit_time);
+  // Use individual schedule per record
   const totalWorked = completed.reduce((sum,r)=>sum+(calcHours(r)||0),0);
-  const totalExpected = completed.length * WORK_HOURS;
+  const totalExpected = completed.reduce((sum,r)=>sum+getWorkHours(r.user_id),0);
   const balance = totalWorked - totalExpected;
   const userId = recs[0]?.user_id;
   const userStart = userId ? getWorkStart(userId) : WORK_START;
   const userHours = userId ? getWorkHours(userId) : WORK_HOURS;
+  // Late = entry after scheduled start + 5 min tolerance
   const lateDays = recs.filter(r=>{
     if(!r.entry_time) return false;
     const d = new Date(r.entry_time);
-    return d.getHours() > userStart || (d.getHours()===userStart && d.getMinutes()>5);
+    const start = getWorkStart(r.user_id);
+    return d.getHours() > start || (d.getHours()===start && d.getMinutes()>5);
   }).length;
-  const overtimeDays = completed.filter(r=>(calcHours(r)||0)>userHours).length;
-  return { totalWorked:Math.round(totalWorked*100)/100, totalExpected, balance:Math.round(balance*100)/100, lateDays, overtimeDays, days:completed.length };
+  // Late minutes total
+  const lateMinutes = recs.reduce((sum,r)=>{
+    if(!r.entry_time) return sum;
+    const d = new Date(r.entry_time);
+    const start = getWorkStart(r.user_id);
+    const startMins = start * 60;
+    const entryMins = d.getHours()*60 + d.getMinutes();
+    return entryMins > startMins + 5 ? sum + (entryMins - startMins) : sum;
+  }, 0);
+  const overtimeDays = completed.filter(r=>(calcHours(r)||0)>getWorkHours(r.user_id)).length;
+  return { totalWorked:Math.round(totalWorked*100)/100, totalExpected:Math.round(totalExpected*100)/100, balance:Math.round(balance*100)/100, lateDays, lateMinutes, overtimeDays, days:completed.length };
 }
 
 function formatBalance(hours){ return formatHMSsigned(hours); }
@@ -1200,7 +1212,7 @@ function exportColabTimePDF(userId){
   // Late minutes
   let totalLateMin = 0;
   recs.forEach(r=>{ if(r.entry_time){ const d=new Date(r.entry_time); const s=userStart*60; const e=d.getHours()*60+d.getMinutes(); if(e>s+5) totalLateMin+=e-s; }});
-  const saldo = totalExtra - totalDebt - (totalLateMin/60);
+  const saldo = totalExtra - totalDebt;
   const expectedTotal = recs.filter(r=>r.entry_time&&r.exit_time).length * userWH;
   const win = window.open('','_blank');
   if(!win){ showToast('Permita pop-ups para gerar o relatório.'); return; }
@@ -2761,6 +2773,7 @@ function renderTimeClock(){
   });
   const totalMonthHours = viewRecs.reduce((sum,rec)=>sum+(rec.total_hours||calcHours(rec)||0),0);
   const balance = calcBalance(viewRecs);
+  const balanceLateMinutes = balance.lateMinutes || 0;
 
   // Team view for admin/leader
   const teamMembers = isAdmin ? state.users.filter(x=>x.role==='employee')
@@ -3035,7 +3048,7 @@ function renderTimeClock(){
                 <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:4px">Total Atrasos Acumulados</div>
               </div>
               ${(()=>{
-                const saldoFinal = totalExtra - totalDebt - (totalLateMinutes/60);
+                const saldoFinal = totalExtra - totalDebt;
                 const saldoColor = saldoFinal>=0?'var(--positive)':'var(--constructive)';
                 return `<div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;box-shadow:var(--shadow);border-top:3px solid ${saldoColor}">
                   <div style="font-family:'Fraunces',serif;font-size:28px;font-weight:700;color:${saldoColor}">
