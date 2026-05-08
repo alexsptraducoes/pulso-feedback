@@ -1194,7 +1194,7 @@ function exportColabTimePDF(userId){
       +'<td>'+formatTime(r.lunch_in)+'</td>'
       +'<td>'+formatTime(r.exit_time)+'</td>'
       +'<td style="text-align:center;font-weight:700">'+(h?formatHMS(h):'—')+'</td>'
-      +'<td style="text-align:center;font-weight:700;color:'+(diff===null?'#aaa':diff>=0?'#2d6a4f':'#c44b2b')+'">'+( diff===null?'—':(diff>=0?'+':'')+diff.toFixed(1)+'h')+'</td>'
+      +'<td style="text-align:center;font-weight:700;color:'+(diff===null?'#aaa':diff>=0?'#2d6a4f':'#c44b2b')+'">'+( diff===null?'—':formatHMSsigned(diff))+'</td>'
       +'</tr>';
   }).join('');
   // Late minutes
@@ -1226,11 +1226,11 @@ function exportColabTimePDF(userId){
     +'<div class="info"><strong>'+u.name+'</strong>'+(u.department||'')+' · '+months[m]+' de '+y+'<br>Gerado em '+new Date().toLocaleDateString('pt-BR')+'</div></div>'
     +'<div class="jornada">⏰ Jornada: <strong>'+sched.entry_time.slice(0,5)+' às '+sched.exit_time.slice(0,5)+'</strong> &nbsp;·&nbsp; Intervalo: <strong>'+sched.lunch_hours+'h</strong> &nbsp;·&nbsp; Meta: <strong>'+userWH+'h/dia</strong></div>'
     +'<div class="cards">'
-    +'<div class="card" style="border-top:3px solid #11008d"><div class="card-num" style="color:#11008d">'+totalWorked.toFixed(1)+'h</div><div class="card-label">Trabalhadas</div></div>'
-    +'<div class="card" style="border-top:3px solid #555"><div class="card-num" style="color:#555">'+expectedTotal.toFixed(0)+'h</div><div class="card-label">Esperadas</div></div>'
-    +'<div class="card" style="border-top:3px solid #2d6a4f"><div class="card-num" style="color:#2d6a4f">+'+totalExtra.toFixed(1)+'h</div><div class="card-label">Horas Extras</div></div>'
-    +'<div class="card" style="border-top:3px solid #c44b2b"><div class="card-num" style="color:#c44b2b">-'+totalDebt.toFixed(1)+'h</div><div class="card-label">Horas Débito</div></div>'
-    +'<div class="card" style="border-top:3px solid '+saldoColor+'"><div class="card-num" style="color:'+saldoColor+'">'+(saldo>=0?'+':'')+saldo.toFixed(1)+'h</div><div class="card-label">Saldo Final</div></div>'
+    +'<div class="card" style="border-top:3px solid #11008d"><div class="card-num" style="color:#11008d">'+formatHMS(totalWorked)+'</div><div class="card-label">Trabalhadas</div></div>'
+    +'<div class="card" style="border-top:3px solid #555"><div class="card-num" style="color:#555">'+formatHMS(expectedTotal)+'</div><div class="card-label">Esperadas</div></div>'
+    +'<div class="card" style="border-top:3px solid #2d6a4f"><div class="card-num" style="color:#2d6a4f">'+formatHMSsigned(totalExtra)+'</div><div class="card-label">Horas Extras</div></div>'
+    +'<div class="card" style="border-top:3px solid #c44b2b"><div class="card-num" style="color:#c44b2b">'+formatHMSsigned(-totalDebt)+'</div><div class="card-label">Horas Débito</div></div>'
+    +'<div class="card" style="border-top:3px solid '+saldoColor+'"><div class="card-num" style="color:'+saldoColor+'">'+formatHMSsigned(saldo)+'</div><div class="card-label">Saldo Final</div></div>'
     +'</div>'
     +'<table><thead><tr><th>Data</th><th>Entrada</th><th>Saída Almoço</th><th>Retorno</th><th>Saída</th><th>Total</th><th>Saldo Dia</th></tr></thead>'
     +'<tbody>'+(rows||'<tr><td colspan="7" style="text-align:center;padding:20px;color:#888">Nenhum registro neste mês</td></tr>')+'</tbody></table>'
@@ -1317,7 +1317,7 @@ function exportTimePDF(){
 </style></head><body>
   <h1>SP Traduções · Relatório de Ponto</h1>
   <h2>${u.name} · ${months[m]} ${y}</h2>
-  <p style="color:#7a7166;font-size:13px">Total: <strong>${totalHours.toFixed(1)}h</strong> · Esperado: <strong>${bal.totalExpected}h</strong> · Banco: <strong>${formatBalance(bal.balance)}</strong> · Atrasos: <strong>${bal.lateDays} dias</strong></p>
+  <p style="color:#7a7166;font-size:13px">Total: <strong>${formatHMS(totalHours)}</strong> · Esperado: <strong>${bal.totalExpected}h</strong> · Banco: <strong>${formatBalance(bal.balance)}</strong> · Atrasos: <strong>${bal.lateDays} dias</strong></p>
   <table>
     <thead><tr><th>Data</th><th>Entrada</th><th>Saída Almoço</th><th>Retorno</th><th>Saída</th><th>Total</th></tr></thead>
     <tbody>
@@ -1330,10 +1330,10 @@ function exportTimePDF(){
           <td>${formatTime(r.lunch_out)}</td>
           <td>${formatTime(r.lunch_in)}</td>
           <td>${formatTime(r.exit_time)}</td>
-          <td><strong>${h?h.toFixed(1)+'h':'—'}</strong></td>
+          <td><strong>${h?formatHMS(h):'—'}</strong></td>
         </tr>`;
       }).join('')}
-      <tr class="total"><td colspan="5">Total do Mês</td><td>${totalHours.toFixed(1)}h</td></tr>
+      <tr class="total"><td colspan="5">Total do Mês</td><td>${formatHMS(totalHours)}</td></tr>
     </tbody>
   </table>
   <div class="footer">SP Traduções · Sistema FLOW · Relatório de Ponto gerado em ${new Date().toLocaleDateString('pt-BR')}</div>
@@ -3869,7 +3869,7 @@ async function sendAIMessage(){
       },
       pontoMes: {
         diasRegistrados: recs.length,
-        horasTrabalhadas: totalHours.toFixed(1)+'h',
+        horasTrabalhadas: formatHMS(totalHours),
         horasEsperadas: expectedHours+'h',
         bancoDeHoras: formatBalance(bal.balance),
         diasAtraso: bal.lateDays,
