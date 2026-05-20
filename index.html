@@ -1394,7 +1394,7 @@ async function loadAllTimeRecords(){
 async function uploadUserDoc(userId){
   const f = state.docUploadFile;
   const name = state.docUploadName.trim();
-  if(!f || !name) return;
+  if(!f || !name){ showToast('Preencha o nome e selecione um arquivo.'); return; }
   const ext = f.name.split('.').pop().toLowerCase();
   const path = 'docs/' + userId + '/' + Date.now() + '.' + ext;
   const { error: upErr } = await sb.storage.from('avatars').upload(path, f, { upsert: true });
@@ -3370,7 +3370,7 @@ function renderDocsModal(){
             <input class="form-input" id="docFileInput" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" style="padding:8px">
             <div style="font-size:11px;color:var(--muted);margin-top:4px">PDF, imagens, Word, Excel</div>
           </div>
-          <button class="btn btn-primary" id="uploadDocBtn" ${!state.docUploadName||!state.docUploadFile?'disabled':''}>⬆ Enviar Documento</button>
+          <button class="btn btn-primary" id="uploadDocBtn">⬆ Enviar Documento</button>
         </div>
         ${docs.length===0 ?
           '<div style="text-align:center;padding:24px;color:var(--muted);font-size:13px">Nenhum documento cadastrado ainda.</div>' :
@@ -4309,9 +4309,9 @@ function bindApp(){
     const docsModalOverlay = document.getElementById('docsModalOverlay');
     if(docsModalOverlay) docsModalOverlay.onclick = e=>{ if(e.target.id==='docsModalOverlay'){ state.showDocsModal=false; render(); }};
     const docNameInput = document.getElementById('docNameInput');
-    if(docNameInput) docNameInput.oninput = e=>{ state.docUploadName=e.target.value; const btn=document.getElementById('uploadDocBtn'); if(btn) btn.disabled=!state.docUploadName||!state.docUploadFile; };
+    if(docNameInput) docNameInput.oninput = e=>{ state.docUploadName=e.target.value; };
     const docFileInput = document.getElementById('docFileInput');
-    if(docFileInput) docFileInput.onchange = e=>{ state.docUploadFile=e.target.files[0]||null; const btn=document.getElementById('uploadDocBtn'); if(btn) btn.disabled=!state.docUploadName||!state.docUploadFile; };
+    if(docFileInput) docFileInput.onchange = e=>{ state.docUploadFile=e.target.files[0]||null; };
     const uploadDocBtn = document.getElementById('uploadDocBtn');
     if(uploadDocBtn) uploadDocBtn.onclick = ()=>uploadUserDoc(state.docsModalUser.id);
     document.querySelectorAll('[data-delete-doc]').forEach(el=>{
