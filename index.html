@@ -461,6 +461,14 @@ body{font-family:'DM Sans',sans-serif;background:#ede8dc;color:var(--ink);min-he
 .ann-image{width:100%;max-height:400px;object-fit:contain;border-radius:var(--radius-sm);margin-top:12px;cursor:pointer}
 .ann-file-link{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:var(--cream);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px;color:var(--ink);text-decoration:none;margin-top:10px}
 .ann-file-link:hover{background:var(--border)}
+
+/* USER DOCUMENTS */
+.doc-item{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--white);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;box-shadow:var(--shadow)}
+.doc-icon{width:40px;height:40px;border-radius:var(--radius-sm);background:var(--cream);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.doc-info{flex:1;min-width:0}
+.doc-name{font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.doc-meta{font-size:11px;color:var(--muted);margin-top:2px}
+.doc-actions{display:flex;gap:6px;flex-shrink:0}
 </style>
 </head>
 <body>
@@ -576,6 +584,11 @@ let state = {
   anthropicKey: localStorage.getItem('flow_ai_key') || '',
   workSchedules: [],
   showScheduleModal: false,
+  userDocuments: [],
+  showDocsModal: false,
+  docsModalUser: null,
+  docUploadFile: null,
+  docUploadName: '',
   scheduleForm: { userId:'', userName:'', entry_time:'09:00', exit_time:'18:00', lunch_hours:1, work_hours:8 },
   showMsgModal: false,
   msgForm: { type:'Elogio', title:'', content:'' },
@@ -683,6 +696,11 @@ async function loadData(){
   state.todayRecord = state.timeRecords.find(r=>r.date===todayStr2 && r.user_id===state.currentUser.id) || null;
   const { data: absencesData } = await sb.from('absences').select('*').order('date', { ascending: false });
   state.absences = absencesData || [];
+  // Load documents (admin/manager only)
+  if(state.currentUser.role==='admin'||state.currentUser.role==='manager'){
+    const { data: docsData } = await sb.from('user_documents').select('*').order('created_at', { ascending: false });
+    state.userDocuments = docsData || [];
+  }
   const { data: schedules } = await sb.from('work_schedules').select('*');
   state.workSchedules = schedules || [];
   // Start event reminder checker
@@ -1233,7 +1251,8 @@ function exportColabTimePDF(userId){
     +'.signs{display:grid;grid-template-columns:1fr 1fr;gap:60px;margin-top:36px}'
     +'.sign-line{border-top:1.5px solid #000;margin-top:50px;padding-top:8px;text-align:center;font-size:10px;color:#555}'
     +'.footer{margin-top:24px;padding-top:10px;border-top:1px solid #ddd;text-align:center;font-size:9px;color:#aaa}'
-    +'@media print{@page{margin:15mm}}</style></head><body>'
+    +'@media print{@page{margin:15mm}}'
+    +'</style></head><body>'
     +'<div class="hdr"><div class="brand"><h1>SP TRADUÇÕES</h1><h2>FLOW · Relatório de Ponto Eletrônico</h2></div>'
     +'<div class="info"><strong>'+u.name+'</strong>'+(u.department||'')+' · '+months[m]+' de '+y+'<br>Gerado em '+new Date().toLocaleDateString('pt-BR')+'</div></div>'
     +'<div class="jornada">⏰ Jornada: <strong>'+sched.entry_time.slice(0,5)+' às '+sched.exit_time.slice(0,5)+'</strong> &nbsp;·&nbsp; Intervalo: <strong>'+sched.lunch_hours+'h</strong> &nbsp;·&nbsp; Meta: <strong>'+userWH+'h/dia</strong></div>'
@@ -1326,6 +1345,7 @@ function exportTimePDF(){
 .ann-image{width:100%;max-height:400px;object-fit:contain;border-radius:var(--radius-sm);margin-top:12px;cursor:pointer}
 .ann-file-link{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:var(--cream);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px;color:var(--ink);text-decoration:none;margin-top:10px}
 .ann-file-link:hover{background:var(--border)}
+
 </style></head><body>
   <h1>SP Traduções · Relatório de Ponto</h1>
   <h2>${u.name} · ${months[m]} ${y}</h2>
@@ -1369,6 +1389,38 @@ async function loadAllTimeRecords(){
 }
 
 
+
+
+async function uploadUserDoc(userId){
+  const f = state.docUploadFile;
+  const name = state.docUploadName.trim();
+  if(!f || !name) return;
+  const ext = f.name.split('.').pop().toLowerCase();
+  const path = 'docs/' + userId + '/' + Date.now() + '.' + ext;
+  const { error: upErr } = await sb.storage.from('avatars').upload(path, f, { upsert: true });
+  if(upErr){ showToast('Erro ao fazer upload.'); return; }
+  const fileUrl = 'https://jdopriegkcfwiljcifyl.supabase.co/storage/v1/object/public/avatars/' + path;
+  const fileType = ['jpg','jpeg','png','gif','webp'].includes(ext) ? 'image' : ext==='pdf' ? 'pdf' : 'file';
+  const { data, error } = await sb.from('user_documents').insert({
+    user_id: userId, name, file_url: fileUrl, file_type: fileType, uploaded_by: state.currentUser.id
+  }).select().single();
+  if(!error && data){
+    state.userDocuments = [data, ...state.userDocuments];
+    state.docUploadFile = null;
+    state.docUploadName = '';
+    showToast('✦ Documento enviado!');
+    render();
+  }
+}
+
+async function deleteUserDoc(id){
+  const { error } = await sb.from('user_documents').delete().eq('id', id);
+  if(!error){
+    state.userDocuments = state.userDocuments.filter(d=>d.id!==id);
+    showToast('Documento excluído.');
+    render();
+  }
+}
 
 async function saveSchedule(){
   const f = state.scheduleForm;
@@ -1887,6 +1939,7 @@ function exportPDF(){
 .ann-image{width:100%;max-height:400px;object-fit:contain;border-radius:var(--radius-sm);margin-top:12px;cursor:pointer}
 .ann-file-link{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:var(--cream);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px;color:var(--ink);text-decoration:none;margin-top:10px}
 .ann-file-link:hover{background:var(--border)}
+
 </style></head><body>
   <h1>SP Traduções · Relatório de Feedback</h1>
   <p style="color:#7a7166">${monthName} · Gerado em ${now.toLocaleDateString('pt-BR')}</p>
@@ -2120,6 +2173,7 @@ function renderApp(){
     ${state.showEditTimeModal ? renderEditTimeModal() : ''}
     ${state.showAbsenceModal ? renderAbsenceModal() : ''}
     ${state.showScheduleModal ? renderScheduleModal() : ''}
+    ${state.showDocsModal ? renderDocsModal() : ''}
     ${state.showReviewModal ? renderReviewModal() : ''}
     ${state.confirm ? renderConfirm() : ''}
     ${state.toast ? `<div class="toast">${state.toast}</div>` : ''}
@@ -2374,7 +2428,7 @@ function renderUsers(){
                 <td>${u.first_access ? '<span style="color:var(--positive);font-size:11px">✅ '+new Date(u.first_access).toLocaleDateString('pt-BR')+'</span>' : '<span style="color:var(--constructive);font-size:11px">⏳ Nunca acessou</span>'}</td>
                 <td style="display:flex;gap:6px;align-items:center">
                   <button class="btn btn-secondary btn-sm" data-edit-birthday="${u.id}" data-edit-birthday-name="${u.name}" data-edit-birthday-val="${u.birthday||''}">🎂</button>
-                  ${(state.currentUser.role==='admin'||state.currentUser.role==='manager') ? `<button class="btn btn-secondary btn-sm" data-edit-schedule="${u.id}" data-schedule-name="${u.name}">⏰</button>` : ''}
+                  ${(state.currentUser.role==='admin'||state.currentUser.role==='manager') ? `<button class="btn btn-secondary btn-sm" data-edit-schedule="${u.id}" data-schedule-name="${u.name}">⏰</button><button class="btn btn-secondary btn-sm" data-open-docs="${u.id}">📁 ${state.userDocuments.filter(d=>d.user_id===u.id).length||''}</button>` : ''}
                   <button class="btn btn-secondary btn-sm" data-edit-user="${u.id}" data-edit-user-name="${u.name}" data-edit-user-email="${u.email}" data-edit-user-role="${u.role}" data-edit-user-dept="${u.department||''}">✏️</button>
                   ${u.id!==state.currentUser.id && (state.currentUser.role==='admin'||state.currentUser.role==='manager') ? `<button class="btn btn-danger btn-sm" data-delete-user="${u.id}" data-delete-user-name="${u.name}">🗑</button>` : ''}
                 </td>
@@ -3291,6 +3345,58 @@ function renderBirthdayModal(){
 
 
 
+
+function renderDocsModal(){
+  const u = state.docsModalUser;
+  if(!u) return '';
+  const docs = state.userDocuments.filter(d=>d.user_id===u.id);
+  const docIcon = type => type==='pdf'?'📄':type==='image'?'🖼️':'📎';
+  return `
+  <div class="modal-overlay" id="docsModalOverlay">
+    <div class="modal" style="max-width:560px">
+      <div class="modal-header">
+        <div class="modal-title">📁 Documentos — ${u.name}</div>
+        <button class="modal-close" id="closeDocsModal">×</button>
+      </div>
+      <div class="modal-body">
+        <div style="background:var(--cream);border-radius:var(--radius);padding:16px;margin-bottom:20px">
+          <div style="font-size:12px;font-weight:600;color:var(--ink);margin-bottom:10px">Adicionar documento</div>
+          <div class="form-group">
+            <label class="form-label">Nome do documento</label>
+            <input class="form-input" id="docNameInput" placeholder="Ex: Contrato, Advertência, RG..." value="${state.docUploadName}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Arquivo</label>
+            <input class="form-input" id="docFileInput" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" style="padding:8px">
+            <div style="font-size:11px;color:var(--muted);margin-top:4px">PDF, imagens, Word, Excel</div>
+          </div>
+          <button class="btn btn-primary" id="uploadDocBtn" ${!state.docUploadName||!state.docUploadFile?'disabled':''}>⬆ Enviar Documento</button>
+        </div>
+        ${docs.length===0 ?
+          '<div style="text-align:center;padding:24px;color:var(--muted);font-size:13px">Nenhum documento cadastrado ainda.</div>' :
+          docs.map(d=>{
+            const uploader = state.users.find(x=>x.id===d.uploaded_by);
+            const date = new Date(d.created_at).toLocaleDateString('pt-BR');
+            return `<div class="doc-item">
+              <div class="doc-icon">${docIcon(d.file_type)}</div>
+              <div class="doc-info">
+                <div class="doc-name">${d.name}</div>
+                <div class="doc-meta">Enviado por ${uploader?uploader.name:'?'} · ${date}</div>
+              </div>
+              <div class="doc-actions">
+                <a href="${d.file_url}" target="_blank" class="btn btn-secondary btn-sm">👁 Ver</a>
+                <button class="btn btn-danger btn-sm" data-delete-doc="${d.id}">🗑</button>
+              </div>
+            </div>`;
+          }).join('')}
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="closeDocsModal2">Fechar</button>
+      </div>
+    </div>
+  </div>`;
+}
+
 function renderScheduleModal(){
   const f = state.scheduleForm;
   const entryH = parseInt(f.entry_time.split(':')[0]);
@@ -4182,6 +4288,36 @@ function bindApp(){
   if(timeFilterMinHours) timeFilterMinHours.oninput = e=>{ state.timeFilter.minHours=e.target.value; render(); };
   const clearTimeFilter = document.getElementById('clearTimeFilter');
   if(clearTimeFilter) clearTimeFilter.onclick = ()=>{ state.timeFilter={userId:'',dateFrom:'',dateTo:'',entry:'',lunchOut:'',lunchIn:'',exit:'',minHours:''}; render(); };
+
+
+  // User documents
+  document.querySelectorAll('[data-open-docs]').forEach(el=>{
+    el.onclick = ()=>{
+      state.docsModalUser = state.users.find(u=>u.id===el.dataset.openDocs);
+      state.docUploadFile = null;
+      state.docUploadName = '';
+      state.showDocsModal = true;
+      render();
+    };
+  });
+
+  if(state.showDocsModal){
+    const closeDocsModal = document.getElementById('closeDocsModal');
+    if(closeDocsModal) closeDocsModal.onclick = ()=>{ state.showDocsModal=false; render(); };
+    const closeDocsModal2 = document.getElementById('closeDocsModal2');
+    if(closeDocsModal2) closeDocsModal2.onclick = ()=>{ state.showDocsModal=false; render(); };
+    const docsModalOverlay = document.getElementById('docsModalOverlay');
+    if(docsModalOverlay) docsModalOverlay.onclick = e=>{ if(e.target.id==='docsModalOverlay'){ state.showDocsModal=false; render(); }};
+    const docNameInput = document.getElementById('docNameInput');
+    if(docNameInput) docNameInput.oninput = e=>{ state.docUploadName=e.target.value; const btn=document.getElementById('uploadDocBtn'); if(btn) btn.disabled=!state.docUploadName||!state.docUploadFile; };
+    const docFileInput = document.getElementById('docFileInput');
+    if(docFileInput) docFileInput.onchange = e=>{ state.docUploadFile=e.target.files[0]||null; const btn=document.getElementById('uploadDocBtn'); if(btn) btn.disabled=!state.docUploadName||!state.docUploadFile; };
+    const uploadDocBtn = document.getElementById('uploadDocBtn');
+    if(uploadDocBtn) uploadDocBtn.onclick = ()=>uploadUserDoc(state.docsModalUser.id);
+    document.querySelectorAll('[data-delete-doc]').forEach(el=>{
+      el.onclick = ()=>{ if(confirm('Excluir este documento?')) deleteUserDoc(el.dataset.deleteDoc); };
+    });
+  }
 
   // Work schedule
   document.querySelectorAll('[data-edit-schedule]').forEach(el=>{
