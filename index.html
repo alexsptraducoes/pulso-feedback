@@ -1558,7 +1558,15 @@ async function saveEditTimeRecord(){
     else total -= LUNCH_HOURS;
     update.total_hours = Math.max(0, Math.round(total * 100) / 100);
   }
-  const { data, error } = await sb.from('time_records').update(update).eq('id', f.id).select().single();
+  // If it's a new empty record, insert instead of update
+  let data, error;
+  if(f.id.startsWith('empty-')){
+    const result = await sb.from('time_records').insert({ user_id: state.users.find(u=>u.name===f.user_name)?.id || f.id, date: f.date, ...update }).select().single();
+    data = result.data; error = result.error;
+  } else {
+    const result = await sb.from('time_records').update(update).eq('id', f.id).select().single();
+    data = result.data; error = result.error;
+  }
   if(!error && data){
     state.timeRecords = state.timeRecords.map(r=>r.id===data.id?data:r);
     state.allUsersTimeRecords = state.allUsersTimeRecords.map(r=>r.id===data.id?data:r);
@@ -3059,9 +3067,39 @@ function renderTimeClock(){
                 if(state.timeFilter.lunchIn) recs = recs.filter(r=>r.lunch_in && formatTime(r.lunch_in)>=state.timeFilter.lunchIn);
                 if(state.timeFilter.exit) recs = recs.filter(r=>r.exit_time && formatTime(r.exit_time)>=state.timeFilter.exit);
                 if(state.timeFilter.minHours) recs = recs.filter(r=>(r.total_hours||calcHours(r)||0)>=parseFloat(state.timeFilter.minHours));
+                // If filtering by user, inject missing working days
+                if(state.timeFilter.userId){
+                  const m = state.timeViewMonth, y = state.timeViewYear;
+                  const daysInMonth = new Date(y, m+1, 0).getDate();
+                  const existingDates = new Set(recs.map(r=>r.date));
+                  for(let d=1; d<=daysInMonth; d++){
+                    const dt = new Date(y, m, d);
+                    if(dt.getDay()===0||dt.getDay()===6) continue; // skip weekends
+                    const dateStr = dt.toISOString().slice(0,10);
+                    const fromFilter = state.timeFilter.dateFrom ? dateStr >= state.timeFilter.dateFrom : true;
+                    const toFilter = state.timeFilter.dateTo ? dateStr <= state.timeFilter.dateTo : true;
+                    if(!existingDates.has(dateStr) && fromFilter && toFilter){
+                      recs.push({ _empty: true, user_id: state.timeFilter.userId, date: dateStr, entry_time:null, lunch_out:null, lunch_in:null, exit_time:null, total_hours:null, id:'empty-'+dateStr });
+                    }
+                  }
+                  recs.sort((a,b)=>b.date.localeCompare(a.date));
+                }
                 return recs;
               })().map(rec=>{
                 const usr = getUserById(rec.user_id);
+                if(rec._empty){
+                  const dt2 = new Date(rec.date+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+                  const wday = new Date(rec.date+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'short'});
+                  return `<tr style="background:#fffbe6">
+                    <td><div style="display:flex;align-items:center;gap:8px">${usr?.avatar_url?`<img src="${usr.avatar_url}" style="width:24px;height:24px;border-radius:50%;object-fit:cover">`:
+                    `<div class="avatar" style="width:24px;height:24px;font-size:9px">${initials(usr?.name||'?')}</div>`}${usr?.name||'?'}</div></td>
+                    <td>${wday} ${dt2} <span style="background:#856404;color:white;font-size:9px;padding:1px 6px;border-radius:10px;font-weight:700">SEM REGISTRO</span></td>
+                    <td style="color:#ccc">—</td><td style="color:#ccc">—</td><td style="color:#ccc">—</td><td style="color:#ccc">—</td><td style="color:#ccc">—</td>
+                    <td style="display:flex;gap:4px">
+                      <button class="btn btn-secondary btn-sm" data-edit-time="${rec.id}" data-edit-time-user="${usr?.name||'?'}" data-edit-time-date="${rec.date}" data-edit-entry="" data-edit-lunch-out="" data-edit-lunch-in="" data-edit-exit="">✏️</button>
+                    </td>
+                  </tr>`;
+                }
                 const h = rec.total_hours || calcHours(rec);
                 const dt = new Date(rec.date+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
                 const isLateR = rec.entry_time && (new Date(rec.entry_time).getHours()>WORK_START||(new Date(rec.entry_time).getHours()===WORK_START&&new Date(rec.entry_time).getMinutes()>5));
