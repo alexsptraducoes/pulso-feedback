@@ -1209,22 +1209,50 @@ function exportColabTimePDF(userId){
   const userWH = getWorkHours(userId);
   const userStart = getWorkStart(userId);
   let totalWorked=0, totalExtra=0, totalDebt=0, lateCount=0;
-  const rows = recs.map(r=>{
-    const dt = new Date(r.date+'T12:00:00');
+
+  // Build all working days of the month (Mon-Fri)
+  const allDays = [];
+  const daysInMonth = new Date(y, m+1, 0).getDate();
+  for(let d=1; d<=daysInMonth; d++){
+    const dt = new Date(y, m, d);
+    const dow = dt.getDay();
+    if(dow !== 0 && dow !== 6){ // Skip weekends
+      const dateStr = dt.toISOString().slice(0,10);
+      const rec = recs.find(r=>r.date===dateStr) || null;
+      allDays.push({ date: dateStr, rec });
+    }
+  }
+
+  const rows = allDays.map(({date, rec: r})=>{
+    const dt = new Date(date+'T12:00:00');
     const dateStr = dt.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'});
+    if(!r){
+      // No record for this day - show blank row
+      return '<tr style="background:#fffbe6">'
+        +'<td>'+dateStr+' <span style="color:#856404;font-size:9px;font-weight:700">SEM REGISTRO</span></td>'
+        +'<td style="color:#ccc">—</td>'
+        +'<td style="color:#ccc">—</td>'
+        +'<td style="color:#ccc">—</td>'
+        +'<td style="color:#ccc">—</td>'
+        +'<td style="color:#ccc;text-align:center">—</td>'
+        +'<td style="color:#ccc;text-align:center">—</td>'
+        +'</tr>';
+    }
     const h = r.total_hours || calcHours(r) || null;
     if(h) totalWorked += h;
     const diff = h ? h - userWH : null;
     if(diff!==null){ if(diff>0) totalExtra+=diff; else totalDebt+=Math.abs(diff); }
     const isLate = r.entry_time && (new Date(r.entry_time).getHours()>userStart||(new Date(r.entry_time).getHours()===userStart&&new Date(r.entry_time).getMinutes()>5));
     if(isLate) lateCount++;
-    return '<tr style="background:'+(isLate?'#fff8f8':'')+'">'
-      +'<td>'+dateStr+'</td>'
-      +'<td>'+formatTime(r.entry_time)+(isLate?' <b style="color:#c44b2b;font-size:9px">ATRASO</b>':'')+'</td>'
-      +'<td>'+formatTime(r.lunch_out)+'</td>'
-      +'<td>'+formatTime(r.lunch_in)+'</td>'
-      +'<td>'+formatTime(r.exit_time)+'</td>'
-      +'<td style="text-align:center;font-weight:700">'+(h?formatHMS(h):'—')+'</td>'
+    // Incomplete record (has entry but missing other fields)
+    const isIncomplete = r.entry_time && (!r.exit_time);
+    return '<tr style="background:'+(isLate?'#fff8f8':isIncomplete?'#fff3cd':'')+'">'
+      +'<td>'+dateStr+(isIncomplete?' <span style="color:#856404;font-size:9px;font-weight:700">INCOMPLETO</span>':'')+'</td>'
+      +'<td>'+(r.entry_time?formatTime(r.entry_time)+(isLate?' <b style="color:#c44b2b;font-size:9px">ATRASO</b>':''):'<span style="color:#ccc">—</span>')+'</td>'
+      +'<td>'+(r.lunch_out?formatTime(r.lunch_out):'<span style="color:#ccc">—</span>')+'</td>'
+      +'<td>'+(r.lunch_in?formatTime(r.lunch_in):'<span style="color:#ccc">—</span>')+'</td>'
+      +'<td>'+(r.exit_time?formatTime(r.exit_time):'<span style="color:#ccc">—</span>')+'</td>'
+      +'<td style="text-align:center;font-weight:700">'+(h?formatHMS(h):'<span style="color:#ccc">—</span>')+'</td>'
       +'<td style="text-align:center;font-weight:700;color:'+(diff===null?'#aaa':diff>=0?'#2d6a4f':'#c44b2b')+'">'+( diff===null?'—':formatHMSsigned(diff))+'</td>'
       +'</tr>';
   }).join('');
