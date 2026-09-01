@@ -208,6 +208,7 @@ body{font-family:'DM Sans',sans-serif;background:#ede8dc;color:var(--ink);min-he
 .role-admin{background:var(--ink);color:var(--paper)}
 .role-leader{background:var(--accent);color:white}
 .role-manager{background:#11008d;color:white}
+.role-assistant{background:#6c757d;color:white}
 .role-employee{background:var(--sand);color:var(--ink)}
 
 /* LOADER */
@@ -683,8 +684,8 @@ async function loadData(){
   let timeQuery = sb.from('time_records').select('*').gte('date', sixMonthsAgoStr).order('date', { ascending: false });
   if(state.currentUser.role === 'employee'){
     timeQuery = timeQuery.eq('user_id', state.currentUser.id);
-  } else if(state.currentUser.role === 'admin' || state.currentUser.role === 'manager'){
-    // Admin sees all - no additional filter
+  } else if(state.currentUser.role === 'admin' || state.currentUser.role === 'manager' || state.currentUser.role === 'assistant'){
+    // Admin/Manager/Assistant sees all - no additional filter
   } else if(state.currentUser.role === 'leader'){
     // Leader sees their team
     const teamIds = (state.users||[]).filter(u=>u.role==='employee'&&u.department===state.currentUser.department).map(u=>u.id);
@@ -693,7 +694,7 @@ async function loadData(){
   }
   const { data: timeRecs } = await timeQuery;
   state.timeRecords = timeRecs || [];
-  state.allUsersTimeRecords = (state.currentUser.role==='admin'||state.currentUser.role==='manager') ? (timeRecs || []) : [];
+  state.allUsersTimeRecords = (state.currentUser.role==='admin'||state.currentUser.role==='manager'||state.currentUser.role==='assistant') ? (timeRecs || []) : [];
   state.todayRecord = state.timeRecords.find(r=>r.date===todayStr2 && r.user_id===state.currentUser.id) || null;
   const { data: absencesData } = await sb.from('absences').select('*').order('date', { ascending: false });
   state.absences = absencesData || [];
@@ -2093,6 +2094,18 @@ function renderApp(){
         {id:'eom',label:'Destaque do Mês',icon:'star'},
         {id:'profile',label:'Meu Perfil',icon:'usr'}
       ]
+    : u.role === 'assistant' ? [
+        {id:'dashboard',label:'Visão Geral',icon:'dash'},
+        {id:'all',label:'Feedbacks',icon:'fb'},
+        {id:'people',label:'Todos os Times',icon:'ppl'},
+        {id:'timeclock',label:'Ponto Eletrônico',icon:'clock'},
+        {id:'calendar',label:'Calendário',icon:'cal'},
+        {id:'announcements',label:'Quadro de Avisos',icon:'ann'},
+        {id:'polls',label:'Enquetes',icon:'poll'},
+        {id:'evals',label:'Avaliações',icon:'eval'},
+        {id:'eom',label:'Destaque do Mês',icon:'star'},
+        {id:'profile',label:'Meu Perfil',icon:'usr'}
+      ]
     : u.role === 'manager' ? [
         {id:'dashboard',label:'Visão Geral',icon:'dash'},
         {id:'all',label:'Feedbacks',icon:'fb'},
@@ -2124,7 +2137,7 @@ function renderApp(){
       ];
 
   const roleLabel = u.role==='admin' ? 'Admin' : u.role==='manager' ? 'Gestor Administrativo' : u.role==='leader' ? 'Líder' : 'Colaborador';
-  const viewTitles = {dashboard: u.role==='employee' ? 'Meus Feedbacks' : 'Visão Geral', all:'Feedbacks', people: (u.role==='admin'||u.role==='manager') ? 'Todos os Times' : 'Meu Time', users:'Gerenciar Usuários', messages:'Mensagens', profile:'Meu Perfil', ai:'Assistente IA', timeclock:'Ponto Eletrônico', calendar:'Calendário', announcements:'Quadro de Avisos', polls:'Enquetes', evals:'Avaliações', eom:'Destaque do Mês'};
+  const viewTitles = {dashboard: u.role==='employee' ? 'Meus Feedbacks' : 'Visão Geral', all:'Feedbacks', people: (u.role==='admin'||u.role==='manager'||u.role==='assistant') ? 'Todos os Times' : 'Meu Time', users:'Gerenciar Usuários', messages:'Mensagens', profile:'Meu Perfil', ai:'Assistente IA', timeclock:'Ponto Eletrônico', calendar:'Calendário', announcements:'Quadro de Avisos', polls:'Enquetes', evals:'Avaliações', eom:'Destaque do Mês'};
 
   return `
   <div class="app">
@@ -2190,7 +2203,7 @@ function renderApp(){
           ${(u.role==='admin'||u.role==='leader') && state.view==='evals' ? `<button class="btn btn-primary" id="newEvalBtn">${svgIcon('add')} Nova Avaliação</button>` : ''}
           ${(u.role==='admin'||u.role==='manager') && state.view==='eom' ? `<button class="btn btn-primary" id="newEomBtn">🏆 Definir Destaque</button>` : ''}
           ${(u.role==='admin'||u.role==='manager') && state.view==='dashboard' ? `<button class="btn btn-secondary" id="exportPdfBtn">📄 Exportar PDF</button>` : ''}
-          ${(u.role==='admin'||u.role==='manager') ? `<button class="btn btn-secondary" id="newUserBtn">${svgIcon('add')} Novo Usuário</button>` : ''}
+          ${(u.role==='admin'||u.role==='manager') && u.role!=='assistant' ? `<button class="btn btn-secondary" id="newUserBtn">${svgIcon('add')} Novo Usuário</button>` : ''}
         </div>
       </div>
       <div class="content">${renderView()}</div>
@@ -2228,7 +2241,7 @@ function renderView(){
   if(state.view==='profile') return renderProfile();
   if(state.view==='timeclock'){
     // Auto-load team records for admin/manager/leader
-    if((state.currentUser.role==='admin'||state.currentUser.role==='manager'||state.currentUser.role==='leader') && state.allUsersTimeRecords.length===0){
+    if((state.currentUser.role==='admin'||state.currentUser.role==='manager'||state.currentUser.role==='leader'||state.currentUser.role==='assistant') && state.allUsersTimeRecords.length===0){
       loadAllTimeRecords();
     }
     return renderTimeClock();
@@ -2458,14 +2471,14 @@ function renderUsers(){
                   <div class="avatar">${initials(u.name)}</div>${u.name}
                 </div></td>
                 <td>${u.email}</td>
-                <td><span class="role-pill role-${u.role}">${u.role==='admin'?'Admin':u.role==='manager'?'Gestor':u.role==='leader'?'Líder':'Colaborador'}</span></td>
+                <td><span class="role-pill role-${u.role}">${u.role==='admin'?'Admin':u.role==='manager'?'Gestor':u.role==='assistant'?'Assistente':u.role==='leader'?'Líder':'Colaborador'}</span></td>
                 <td>${u.department ? `<span class="team-badge">${u.department}</span>` : '—'}</td>
                 <td>${(()=>{ const s=getUserSchedule(u.id); return s.entry_time.slice(0,5)+' - '+s.exit_time.slice(0,5); })()}</td>
                 <td>${u.birthday ? new Date(u.birthday+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : '—'}</td>
                 <td>${u.first_access ? '<span style="color:var(--positive);font-size:11px">✅ '+new Date(u.first_access).toLocaleDateString('pt-BR')+'</span>' : '<span style="color:var(--constructive);font-size:11px">⏳ Nunca acessou</span>'}</td>
                 <td style="display:flex;gap:6px;align-items:center">
                   <button class="btn btn-secondary btn-sm" data-edit-birthday="${u.id}" data-edit-birthday-name="${u.name}" data-edit-birthday-val="${u.birthday||''}">🎂</button>
-                  ${(state.currentUser.role==='admin'||state.currentUser.role==='manager') ? `<button class="btn btn-secondary btn-sm" data-edit-schedule="${u.id}" data-schedule-name="${u.name}">⏰</button><button class="btn btn-secondary btn-sm" data-open-docs="${u.id}">📁 ${state.userDocuments.filter(d=>d.user_id===u.id).length||''}</button>` : ''}
+                  ${(state.currentUser.role==='admin'||state.currentUser.role==='manager') && state.currentUser.role!=='assistant' ? `<button class="btn btn-secondary btn-sm" data-edit-schedule="${u.id}" data-schedule-name="${u.name}">⏰</button><button class="btn btn-secondary btn-sm" data-open-docs="${u.id}">📁 ${state.userDocuments.filter(d=>d.user_id===u.id).length||''}</button>` : ''}
                   <button class="btn btn-secondary btn-sm" data-edit-user="${u.id}" data-edit-user-name="${u.name}" data-edit-user-email="${u.email}" data-edit-user-role="${u.role}" data-edit-user-dept="${u.department||''}">✏️</button>
                   ${u.id!==state.currentUser.id && (state.currentUser.role==='admin'||state.currentUser.role==='manager') ? `<button class="btn btn-danger btn-sm" data-delete-user="${u.id}" data-delete-user-name="${u.name}">🗑</button>` : ''}
                 </td>
@@ -2622,6 +2635,7 @@ function renderUserModal(){
               <option value="employee" ${u.role==='employee'?'selected':''}>Colaborador</option>
               <option value="leader" ${u.role==='leader'?'selected':''}>Líder</option>
               <option value="manager" ${u.role==='manager'?'selected':''}>Gestor Administrativo</option>
+              <option value="assistant" ${u.role==='assistant'?'selected':''}>Assistente Administrativo</option>
               <option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>
             </select>
           </div>
@@ -2818,7 +2832,7 @@ function renderProfile(){
           : `<div class="avatar" style="width:80px;height:80px;font-size:24px;font-weight:700;background:var(--sand);border-radius:50%;display:flex;align-items:center;justify-content:center">${initials(u.name)}</div>`}
         <div>
           <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:600">${u.name}</div>
-          <div style="font-size:13px;color:var(--muted);margin-top:4px">${u.role==='admin'?'Admin':u.role==='manager'?'Gestor Administrativo':u.role==='leader'?'Líder':'Colaborador'}${u.department?' · '+u.department:''}</div>
+          <div style="font-size:13px;color:var(--muted);margin-top:4px">${u.role==='admin'?'Admin':u.role==='assistant'?'Assistente Administrativo':u.role==='manager'?'Gestor Administrativo':u.role==='leader'?'Líder':'Colaborador'}${u.department?' · '+u.department:''}</div>
           <label class="profile-upload-btn" style="margin-top:12px;display:inline-block">
             📷 Alterar foto
             <input type="file" id="avatarInput" accept="image/*" style="display:none">
@@ -2841,8 +2855,9 @@ function renderProfile(){
 function renderTimeClock(){
   const u = state.currentUser;
   const isAdmin = u.role==='admin' || u.role==='manager';
+  const isAssistant = u.role==='assistant';
   const isLeader = u.role==='leader';
-  const canPunch = u.role==='employee' || u.role==='leader' || u.role==='manager';
+  const canPunch = u.role==='employee' || u.role==='leader' || u.role==='manager' || u.role==='assistant';
   const r = state.todayRecord;
   const now = state.clockTime;
   const months = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -3193,7 +3208,7 @@ function renderTimeClock(){
         ${canPunch ? `<button class="btn btn-primary" id="newAbsenceBtn">📋 Justificar Falta</button>` : ''}
       </div>
       ${(()=>{
-        const myAbsences = isAdmin ? state.absences : state.absences.filter(a=>a.user_id===u.id);
+        const myAbsences = (isAdmin||isAssistant) ? state.absences : state.absences.filter(a=>a.user_id===u.id);
         const pending = myAbsences.filter(a=>a.status==='pending').length;
         if(myAbsences.length===0) return `<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-title">Nenhuma justificativa</div><div class="empty-text">${isAdmin?'Nenhuma justificativa pendente.':'Use este espaço para justificar faltas.'}</div></div>`;
         return (isAdmin && pending>0 ? `<div style="background:#fff3cd;padding:12px 16px;border-radius:var(--radius-sm);margin-bottom:16px;font-size:13px;font-weight:600;color:#856404">⚠️ ${pending} justificativa${pending!==1?'s':''} aguardando análise</div>` : '') +
@@ -3210,7 +3225,7 @@ function renderTimeClock(){
             <div style="font-size:13px;color:var(--ink);margin-bottom:10px">${a.reason}</div>
             ${a.attachment_url ? `<a href="${a.attachment_url}" target="_blank" class="btn btn-secondary btn-sm" style="margin-bottom:10px">📎 Ver Documento</a>` : ''}
             ${a.admin_note ? `<div style="font-size:12px;color:var(--muted);background:var(--cream);padding:8px 12px;border-radius:var(--radius-sm);margin-bottom:10px"><strong>Admin:</strong> ${a.admin_note}</div>` : ''}
-            ${isAdmin && a.status==='pending' ? `<button class="btn btn-primary btn-sm" data-review-absence="${a.id}" data-review-user="${absUser?absUser.name:'?'}" data-review-date="${a.date}" data-review-reason="${a.reason.replace(/"/g,'&quot;')}" data-review-attachment="${a.attachment_url||''}">🔍 Analisar</button>` : ''}
+            ${isAdmin && !isAssistant && a.status==='pending' ? `<button class="btn btn-primary btn-sm" data-review-absence="${a.id}" data-review-user="${absUser?absUser.name:'?'}" data-review-date="${a.date}" data-review-reason="${a.reason.replace(/"/g,'&quot;')}" data-review-attachment="${a.attachment_url||''}">🔍 Analisar</button>` : ''}
           </div>`;
         }).join('');
       })()}
@@ -3364,6 +3379,7 @@ function renderEditUserModal(){
               <option value="employee" ${f.role==='employee'?'selected':''}>Colaborador</option>
               <option value="leader" ${f.role==='leader'?'selected':''}>Líder</option>
               <option value="manager" ${f.role==='manager'?'selected':''}>Gestor Administrativo</option>
+              <option value="assistant" ${f.role==='assistant'?'selected':''}>Assistente Administrativo</option>
               <option value="admin" ${f.role==='admin'?'selected':''}>Admin</option>
             </select>
           </div>
