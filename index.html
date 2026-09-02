@@ -2480,8 +2480,10 @@ function renderUsers(){
                 <td style="display:flex;gap:6px;align-items:center">
                   <button class="btn btn-secondary btn-sm" data-edit-birthday="${u.id}" data-edit-birthday-name="${u.name}" data-edit-birthday-val="${u.birthday||''}">🎂</button>
                   ${(state.currentUser.role==='admin'||state.currentUser.role==='manager') && state.currentUser.role!=='assistant' ? `<button class="btn btn-secondary btn-sm" data-edit-schedule="${u.id}" data-schedule-name="${u.name}">⏰</button><button class="btn btn-secondary btn-sm" data-open-docs="${u.id}">📁 ${state.userDocuments.filter(d=>d.user_id===u.id).length||''}</button>` : ''}
-                  <button class="btn btn-secondary btn-sm" data-edit-user="${u.id}" data-edit-user-name="${u.name}" data-edit-user-email="${u.email}" data-edit-user-role="${u.role}" data-edit-user-dept="${u.department||''}">✏️</button>
-                  ${u.id!==state.currentUser.id && (state.currentUser.role==='admin'||state.currentUser.role==='manager') ? `<button class="btn btn-danger btn-sm" data-delete-user="${u.id}" data-delete-user-name="${u.name}">🗑</button>` : ''}
+                  ${state.currentUser.role!=='assistant' ? `
+                    <button class="btn btn-secondary btn-sm" data-edit-user="${u.id}" data-edit-user-name="${u.name}" data-edit-user-email="${u.email}" data-edit-user-role="${u.role}" data-edit-user-dept="${u.department||''}">✏️</button>
+                    ${u.id!==state.currentUser.id && (state.currentUser.role==='admin'||state.currentUser.role==='manager') ? `<button class="btn btn-danger btn-sm" data-delete-user="${u.id}" data-delete-user-name="${u.name}">🗑</button>` : ''}
+                  ` : ''}
                 </td>
               </tr>`).join('')}
           </tbody>
