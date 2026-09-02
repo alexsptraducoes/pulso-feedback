@@ -2847,7 +2847,7 @@ function renderProfile(){
     <div class="profile-section">
       <div style="font-family:'Fraunces',serif;font-size:17px;font-weight:600;color:var(--ink);margin-bottom:16px">🔒 Segurança</div>
       <div style="font-size:13px;color:var(--muted);margin-bottom:16px">Recomendamos trocar sua senha no primeiro acesso.</div>
-      <button class="btn btn-primary" id="changePasswordBtn">🔒 Trocar Senha</button>
+      ${state.currentUser.role!=='assistant' ? `<button class="btn btn-primary" id="changePasswordBtn">🔒 Trocar Senha</button>` : ''}
     </div>`;
 }
 
@@ -3010,7 +3010,7 @@ function renderTimeClock(){
                 <td>
                   <span class="hours-badge ${h>=WORK_HOURS?'hours-ok':h>=6?'hours-partial':'hours-low'}">${h?formatHMS(h):'—'}</span>
                   ${h?`<span style="font-size:11px;color:${h>=WORK_HOURS?'var(--positive)':'var(--constructive)'}">${formatBalance(h-WORK_HOURS)}</span>`:''}
-                  ${isAdmin?`
+                  ${isAdmin&&!isAssistant?`
                     <button class="btn btn-secondary btn-sm" style="margin-left:6px" data-edit-time="${rec.id}" data-edit-time-user="${u.name}" data-edit-time-date="${rec.date}" data-edit-entry="${formatTime(rec.entry_time).replace('—','')}" data-edit-lunch-out="${formatTime(rec.lunch_out).replace('—','')}" data-edit-lunch-in="${formatTime(rec.lunch_in).replace('—','')}" data-edit-exit="${formatTime(rec.exit_time).replace('—','')}">✏️</button>
                     <button class="btn btn-danger btn-sm" data-delete-time="${rec.id}">🗑</button>`:''}}
                 </td>
@@ -3134,8 +3134,8 @@ function renderTimeClock(){
                   <td><span class="hours-badge ${h>=WORK_HOURS?'hours-ok':h>=6?'hours-partial':'hours-low'}">${h?formatHMS(h):'—'}</span></td>
                   <td style="display:flex;gap:4px">
                     <button class="btn btn-secondary btn-sm" data-colab-report="${rec.user_id}" title="Relatório PDF">📄</button>
-                  <button class="btn btn-secondary btn-sm" data-edit-time="${rec.id}" data-edit-time-user="${usr?.name||'?'}" data-edit-time-date="${rec.date}" data-edit-entry="${formatTime(rec.entry_time).replace('—','')}" data-edit-lunch-out="${formatTime(rec.lunch_out).replace('—','')}" data-edit-lunch-in="${formatTime(rec.lunch_in).replace('—','')}" data-edit-exit="${formatTime(rec.exit_time).replace('—','')}">✏️</button>
-                    <button class="btn btn-danger btn-sm" data-delete-time="${rec.id}">🗑</button>
+                  ${!isAssistant ? `<button class="btn btn-secondary btn-sm" data-edit-time="${rec.id}" data-edit-time-user="${usr?.name||'?'}" data-edit-time-date="${rec.date}" data-edit-entry="${formatTime(rec.entry_time).replace('—','')}" data-edit-lunch-out="${formatTime(rec.lunch_out).replace('—','')}" data-edit-lunch-in="${formatTime(rec.lunch_in).replace('—','')}" data-edit-exit="${formatTime(rec.exit_time).replace('—','')}">✏️</button>
+                    <button class="btn btn-danger btn-sm" data-delete-time="${rec.id}">🗑</button>` : ''}
                   </td>
                 </tr>`;
               }).join('')}
