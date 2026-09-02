@@ -3012,7 +3012,7 @@ function renderTimeClock(){
                   ${h?`<span style="font-size:11px;color:${h>=WORK_HOURS?'var(--positive)':'var(--constructive)'}">${formatBalance(h-WORK_HOURS)}</span>`:''}
                   ${isAdmin?`
                     <button class="btn btn-secondary btn-sm" style="margin-left:6px" data-edit-time="${rec.id}" data-edit-time-user="${u.name}" data-edit-time-date="${rec.date}" data-edit-entry="${formatTime(rec.entry_time).replace('—','')}" data-edit-lunch-out="${formatTime(rec.lunch_out).replace('—','')}" data-edit-lunch-in="${formatTime(rec.lunch_in).replace('—','')}" data-edit-exit="${formatTime(rec.exit_time).replace('—','')}">✏️</button>
-                    <button class="btn btn-danger btn-sm" data-delete-time="${rec.id}">🗑</button>`:''}
+                    <button class="btn btn-danger btn-sm" data-delete-time="${rec.id}">🗑</button>`:''}}
                 </td>
               </tr>`;
             }).join('')}
@@ -3113,7 +3113,7 @@ function renderTimeClock(){
                     <td>${wday} ${dt2} <span style="background:#856404;color:white;font-size:9px;padding:1px 6px;border-radius:10px;font-weight:700">SEM REGISTRO</span></td>
                     <td style="color:#ccc">—</td><td style="color:#ccc">—</td><td style="color:#ccc">—</td><td style="color:#ccc">—</td><td style="color:#ccc">—</td>
                     <td style="display:flex;gap:4px">
-                      <button class="btn btn-secondary btn-sm" data-edit-time="${rec.id}" data-edit-time-user="${usr?.name||'?'}" data-edit-time-date="${rec.date}" data-edit-entry="" data-edit-lunch-out="" data-edit-lunch-in="" data-edit-exit="">✏️</button>
+                      ${!isAssistant?`<button class="btn btn-secondary btn-sm" data-edit-time="${rec.id}" data-edit-time-user="${usr?.name||'?'}" data-edit-time-date="${rec.date}" data-edit-entry="" data-edit-lunch-out="" data-edit-lunch-in="" data-edit-exit="">✏️</button>`:''}
                     </td>
                   </tr>`;
                 }
@@ -3207,7 +3207,7 @@ function renderTimeClock(){
     <div class="section" style="margin-top:24px">
       <div class="section-header">
         <div class="section-title">📋 Justificativas de Falta</div>
-        ${canPunch ? `<button class="btn btn-primary" id="newAbsenceBtn">📋 Justificar Falta</button>` : ''}
+        ${canPunch && !isAssistant ? `<button class="btn btn-primary" id="newAbsenceBtn">📋 Justificar Falta</button>` : ''}
       </div>
       ${(()=>{
         const myAbsences = (isAdmin||isAssistant) ? state.absences : state.absences.filter(a=>a.user_id===u.id);
