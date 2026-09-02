@@ -685,7 +685,6 @@ async function loadData(){
   if(state.currentUser.role === 'employee'){
     timeQuery = timeQuery.eq('user_id', state.currentUser.id);
   } else if(state.currentUser.role === 'admin' || state.currentUser.role === 'manager' || state.currentUser.role === 'assistant'){
-    // Admin/Manager/Assistant sees all - no additional filter
   } else if(state.currentUser.role === 'leader'){
     // Leader sees their team
     const teamIds = (state.users||[]).filter(u=>u.role==='employee'&&u.department===state.currentUser.department).map(u=>u.id);
@@ -694,7 +693,7 @@ async function loadData(){
   }
   const { data: timeRecs } = await timeQuery;
   state.timeRecords = timeRecs || [];
-  state.allUsersTimeRecords = (state.currentUser.role==='admin'||state.currentUser.role==='manager'||state.currentUser.role==='assistant') ? (timeRecs || []) : [];
+  state.allUsersTimeRecords = (state.currentUser.role==='admin'||state.currentUser.role==='manager'||state.currentUser.role==='assistant'||state.currentUser.role==='leader') ? (timeRecs || []) : [];
   state.todayRecord = state.timeRecords.find(r=>r.date===todayStr2 && r.user_id===state.currentUser.id) || null;
   const { data: absencesData } = await sb.from('absences').select('*').order('date', { ascending: false });
   state.absences = absencesData || [];
@@ -2858,6 +2857,7 @@ function renderTimeClock(){
   const u = state.currentUser;
   const isAdmin = u.role==='admin' || u.role==='manager';
   const isAssistant = u.role==='assistant';
+  const canViewAll = isAdmin || isAssistant;
   const isLeader = u.role==='leader';
   const canPunch = u.role==='employee' || u.role==='leader' || u.role==='manager' || u.role==='assistant';
   const r = state.todayRecord;
@@ -3020,7 +3020,7 @@ function renderTimeClock(){
         </table>
       </div>
 
-      ${(isAdmin||isLeader) ? `
+      ${(isAdmin||isLeader||isAssistant) ? `
       <div class="section" style="margin-top:32px">
         <div class="section-header">
           <div class="section-title">Registros de Todo o Time</div>
