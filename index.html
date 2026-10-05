@@ -470,6 +470,9 @@ body{font-family:'DM Sans',sans-serif;background:#ede8dc;color:var(--ink);min-he
 .doc-name{font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .doc-meta{font-size:11px;color:var(--muted);margin-top:2px}
 .doc-actions{display:flex;gap:6px;flex-shrink:0}
+
+/* JUSTIFIED ABSENCE */
+.ja-badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;background:#d0e8ff;color:#0a58ca}
 </style>
 </head>
 <body>
@@ -585,6 +588,7 @@ let state = {
   anthropicKey: localStorage.getItem('flow_ai_key') || '',
   workSchedules: [],
   showScheduleModal: false,
+  justifiedAbsences: [],
   userDocuments: [],
   showDocsModal: false,
   docsModalUser: null,
@@ -697,6 +701,8 @@ async function loadData(){
   state.todayRecord = state.timeRecords.find(r=>r.date===todayStr2 && r.user_id===state.currentUser.id) || null;
   const { data: absencesData } = await sb.from('absences').select('*').order('date', { ascending: false });
   state.absences = absencesData || [];
+  const { data: jaData } = await sb.from('justified_absences').select('*');
+  state.justifiedAbsences = jaData || [];
   // Load documents (admin/manager only)
   if(state.currentUser.role==='admin'||state.currentUser.role==='manager'){
     const { data: docsData } = await sb.from('user_documents').select('*').order('created_at', { ascending: false });
@@ -1164,11 +1170,16 @@ function calcHours(rec){
 
 function calcBalance(recs){
   const completed = recs.filter(r=>r.entry_time && r.exit_time);
+  const userId = recs[0]?.user_id;
   // Use individual schedule per record
   const totalWorked = completed.reduce((sum,r)=>sum+(calcHours(r)||0),0);
+  // Add justified absence hours to worked total
+  const jaHours = userId ? state.justifiedAbsences
+    .filter(j=>j.user_id===userId)
+    .filter(j=>{ const rec = recs.find(r=>r.date===j.date); return !rec || (!rec.entry_time && !rec.exit_time); })
+    .reduce((sum,j)=>sum+getWorkHours(j.user_id),0) : 0;
   const totalExpected = completed.reduce((sum,r)=>sum+getWorkHours(r.user_id),0);
-  const balance = totalWorked - totalExpected;
-  const userId = recs[0]?.user_id;
+  const balance = (totalWorked + jaHours) - totalExpected;
   const userStart = userId ? getWorkStart(userId) : WORK_START;
   const userHours = userId ? getWorkHours(userId) : WORK_HOURS;
   // Late = entry after scheduled start + 5 min tolerance
@@ -1227,7 +1238,20 @@ function exportColabTimePDF(userId){
     const dt = new Date(date+'T12:00:00');
     const dateStr = dt.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'});
     if(!r){
-      // No record for this day - show blank row
+      const isJa = state.justifiedAbsences.find(j=>j.user_id===userId && j.date===date);
+      if(isJa){
+        const wh = getWorkHours(userId);
+        if(wh) totalWorked += wh;
+        return '<tr style="background:#d0e8ff">'
+          +'<td>'+dateStr+' <span style="background:#0a58ca;color:white;font-size:9px;padding:1px 6px;border-radius:10px;font-weight:700">FALTA JUSTIFICADA</span></td>'
+          +'<td style="color:#0a58ca">—</td>'
+          +'<td style="color:#0a58ca">—</td>'
+          +'<td style="color:#0a58ca">—</td>'
+          +'<td style="color:#0a58ca">—</td>'
+          +'<td style="text-align:center;font-weight:700;color:#0a58ca">'+formatHMS(wh)+'</td>'
+          +'<td style="text-align:center;color:#0a58ca;font-size:10px">justificada</td>'
+          +'</tr>';
+      }
       return '<tr style="background:#fffbe6">'
         +'<td>'+dateStr+' <span style="color:#856404;font-size:9px;font-weight:700">SEM REGISTRO</span></td>'
         +'<td style="color:#ccc">—</td>'
@@ -1375,6 +1399,9 @@ function exportTimePDF(){
 .ann-file-link{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:var(--cream);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px;color:var(--ink);text-decoration:none;margin-top:10px}
 .ann-file-link:hover{background:var(--border)}
 
+
+/* JUSTIFIED ABSENCE */
+.ja-badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;background:#d0e8ff;color:#0a58ca}
 </style></head><body>
   <h1>SP Traduções · Relatório de Ponto</h1>
   <h2>${u.name} · ${months[m]} ${y}</h2>
@@ -1419,6 +1446,38 @@ async function loadAllTimeRecords(){
 
 
 
+
+
+async function justifyAbsence(userId, date){
+  const existing = state.justifiedAbsences.find(j=>j.user_id===userId && j.date===date);
+  if(existing){
+    showToast('Esta falta já está justificada.');
+    return;
+  }
+  const { data, error } = await sb.from('justified_absences').insert({
+    user_id: userId,
+    date: date,
+    justified_by: state.currentUser.id
+  }).select().single();
+  if(!error && data){
+    state.justifiedAbsences = [...state.justifiedAbsences, data];
+    showToast('✅ Falta justificada! Horas contabilizadas.');
+    render();
+  } else {
+    showToast('Erro ao justificar falta.');
+  }
+}
+
+async function removeJustification(userId, date){
+  const existing = state.justifiedAbsences.find(j=>j.user_id===userId && j.date===date);
+  if(!existing) return;
+  const { error } = await sb.from('justified_absences').delete().eq('id', existing.id);
+  if(!error){
+    state.justifiedAbsences = state.justifiedAbsences.filter(j=>j.id!==existing.id);
+    showToast('Justificativa removida.');
+    render();
+  }
+}
 
 async function uploadUserDoc(userId){
   const f = state.docUploadFile;
@@ -1977,6 +2036,9 @@ function exportPDF(){
 .ann-file-link{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:var(--cream);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px;color:var(--ink);text-decoration:none;margin-top:10px}
 .ann-file-link:hover{background:var(--border)}
 
+
+/* JUSTIFIED ABSENCE */
+.ja-badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;background:#d0e8ff;color:#0a58ca}
 </style></head><body>
   <h1>SP Traduções · Relatório de Feedback</h1>
   <p style="color:#7a7166">${monthName} · Gerado em ${now.toLocaleDateString('pt-BR')}</p>
@@ -4385,6 +4447,15 @@ function bindApp(){
   const clearTimeFilter = document.getElementById('clearTimeFilter');
   if(clearTimeFilter) clearTimeFilter.onclick = ()=>{ state.timeFilter={userId:'',dateFrom:'',dateTo:'',entry:'',lunchOut:'',lunchIn:'',exit:'',minHours:''}; render(); };
 
+
+
+  // Justified absences
+  document.querySelectorAll('[data-justify-absence]').forEach(el=>{
+    el.onclick = ()=>justifyAbsence(el.dataset.justifyAbsence, el.dataset.justifyDate);
+  });
+  document.querySelectorAll('[data-remove-justification]').forEach(el=>{
+    el.onclick = ()=>removeJustification(el.dataset.removeJustification, el.dataset.removeJustificationDate);
+  });
 
   // User documents
   document.querySelectorAll('[data-open-docs]').forEach(el=>{
