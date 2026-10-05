@@ -3713,6 +3713,20 @@ function renderEditTimeModal(){
           ⚠️ Apenas o administrador pode corrigir registros de ponto.
         </div>
       </div>
+      <div style="font-size:12px;color:var(--muted);padding:10px;background:#fff3cd;border-radius:var(--radius-sm);margin-top:8px">
+        ⚠️ Apenas o administrador pode corrigir registros de ponto.
+      </div>
+      ${(()=>{
+        const isJa = state.justifiedAbsences.find(j=>j.user_id===(state.users.find(u=>u.name===f.user_name)||{}).id && j.date===f.date);
+        const isEmptyDay = !f.entry_time && !f.exit_time;
+        if(!isEmptyDay) return '';
+        return isJa
+          ? `<div style="background:#d0e8ff;padding:10px 14px;border-radius:var(--radius-sm);margin-top:8px;font-size:12px;color:#0a58ca;display:flex;align-items:center;justify-content:space-between">
+              <span>✅ Falta justificada</span>
+              <button class="btn btn-secondary btn-sm" id="removeJustificationBtn">↩ Remover</button>
+            </div>`
+          : `<button class="btn btn-primary" id="justifyAbsenceBtn" style="width:100%;margin-top:8px;background:#0a58ca">✅ Marcar como Falta Justificada</button>`;
+      })()}
       <div class="modal-footer">
         <button class="btn btn-secondary" id="cancelEditTimeModal">Cancelar</button>
         <button class="btn btn-primary" id="submitEditTime">Salvar Correção →</button>
@@ -4624,6 +4638,16 @@ function bindApp(){
     const eex = document.getElementById('editExit');
     if(eex) eex.onchange = e=>state.editTimeForm.exit_time=e.target.value;
     document.getElementById('submitEditTime').onclick = saveEditTimeRecord;
+    const justifyAbsenceBtn = document.getElementById('justifyAbsenceBtn');
+    if(justifyAbsenceBtn) justifyAbsenceBtn.onclick = ()=>{
+      const u = state.users.find(u=>u.name===state.editTimeForm.user_name);
+      if(u) justifyAbsence(u.id, state.editTimeForm.date).then(()=>{ state.showEditTimeModal=false; });
+    };
+    const removeJustificationBtn = document.getElementById('removeJustificationBtn');
+    if(removeJustificationBtn) removeJustificationBtn.onclick = ()=>{
+      const u = state.users.find(u=>u.name===state.editTimeForm.user_name);
+      if(u) removeJustification(u.id, state.editTimeForm.date).then(()=>{ state.showEditTimeModal=false; });
+    };
   }
 
   // Time clock
